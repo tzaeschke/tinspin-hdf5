@@ -6,6 +6,10 @@
  */
 package org.tinspin.data.hdf5;
 
+import java.util.Arrays;
+
+import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
+
 class HDF5BlockHEAP extends HDF5Block {
 	//Signature
 	int i0Signature;
@@ -24,6 +28,10 @@ class HDF5BlockHEAP extends HDF5Block {
 
 	//Address of Data SegmentO
 	long l24dataSegementOffset;
+	
+	String[] heap;
+	int[] heapOffset;
+	int heapSize = 0;
 	
 	public HDF5BlockHEAP(int offset) {
 		super(offset);
@@ -49,5 +57,14 @@ class HDF5BlockHEAP extends HDF5Block {
 
 				//Address of Data SegmentO
 				"dataSegementOffset=" + l24dataSegementOffset;
+	}
+
+	public String getLinkName(SymbolTableEntry ste) {
+		int posName = (int) ste.l0LinkNameOffsetO;
+		int pos = Arrays.binarySearch(heapOffset, 0, heapSize, posName);
+		if (pos < 0) {
+			throw new IllegalStateException();
+		}
+		return heap[pos];
 	}
 }

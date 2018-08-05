@@ -6,6 +6,8 @@
  */
 package org.tinspin.data.hdf5;
 
+import java.util.Arrays;
+
 public class DOHeaderMessage extends HDF5Block {
 	
 	//Header Message Type #1 /2
@@ -32,7 +34,8 @@ public class DOHeaderMessage extends HDF5Block {
 		return "DOHeaderMessage(" + getOffset() + ")" + Reader.L + 
 				"HeaderMsgType=" + s12HeaderMsgType + Reader.L +
 				"SizeHeaderMsgData=" + s14SizeHeaderMsgData + Reader.L +
-				"HeaderMsgFlags=" + b16HeaderMsgFlags;
+				"HeaderMsgFlags=" + b16HeaderMsgFlags + "=" + Integer.toBinaryString(b16HeaderMsgFlags) + Reader.L + 
+				"data=" + Arrays.toString(b20data);
 
 				//Reserved (zero)
 				//"" + b17Zero + L +

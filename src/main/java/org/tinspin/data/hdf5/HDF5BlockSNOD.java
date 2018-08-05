@@ -70,6 +70,28 @@ class HDF5BlockSNOD extends HDF5Block {
 			}
 			return ret;
 		}
+
+		public int getOffsetTREE() {
+			if (i16CachedType == 1) {
+				return (int) l24ct1addressBTreeO;
+			} else if (i16CachedType == 2) {
+//				ret +=
+//						//CT 2: Offset to Link Value (4 bytes)
+//						"ct2offsetToLink=" + i24ct2offsetToLink;
+			}
+			throw new UnsupportedOperationException();
+		}
+
+		public int getOffsetHEAP() {
+			if (i16CachedType == 1) {
+				return (int) l32ct1addressNameHeapO;
+			} else if (i16CachedType == 2) {
+//				ret +=
+//						//CT 2: Offset to Link Value (4 bytes)
+//						"ct2offsetToLink=" + i24ct2offsetToLink;
+			}
+			throw new UnsupportedOperationException();
+		}
 	}
 	
 	

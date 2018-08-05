@@ -99,4 +99,12 @@ class HDF5BlockSBHeader extends HDF5Block {
 	public int getGroupLeafNodeK() {
 		return s16gLeafNodeK;
 	}
+
+	public int getSizeLen() {
+		return b14sizeOfLength;
+	}
+
+	public int getSizeOffset() {
+		return b13sizeOfOffsets;
+	}
 }

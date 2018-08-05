@@ -25,6 +25,9 @@ class HDF5BlockTREE extends HDF5Block {
 	//Address of Right SiblingO
 	long l16addreRightSiblO;
 	
+	long[] childPointers;
+	Object keys;
+	
 	HDF5Entry[] entries;
 	
 	//Key 0 (variable size)

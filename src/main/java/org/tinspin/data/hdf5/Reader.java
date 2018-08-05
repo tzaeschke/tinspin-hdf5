@@ -17,7 +17,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.EnumSet;
 
 import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
-import org.tinspin.data.hdf5.HDF5BlockTREE.HDF5Entry;
 
 public class Reader {
 
@@ -25,6 +24,9 @@ public class Reader {
 	//https://github.com/erikbern/ann-benchmarks/blob/master/README.md
 	
 	private static final String FILE = "D:\\data\\HDF5\\fashion-mnist-784-euclidean.hdf5";
+	//private static final String FILE = "D:\\data\\HDF5\\glove-25-angular.hdf5";
+	//private static final String FILE = "D:\\data\\HDF5\\sift-128-euclidean.hdf5";
+	
 	//static char L = '\n';
 	static String L = "   ";
 	
@@ -128,13 +130,58 @@ public class Reader {
 		
 		sb.rootGroupSymbolTableEntry = readSymbolTableEntry(bb, sLen, sOffs);
 		//sb.i60rootGSTE = read4(bb);
-		sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb, sb.rootGroupSymbolTableEntry.l8ObjectHeaderAddressO);
+		//sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb, sb.rootGroupSymbolTableEntry.l8ObjectHeaderAddressO);
+		skipTo(bb, sb.rootGroupSymbolTableEntry.l8ObjectHeaderAddressO);
+		sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb);
+		
+		//Not specified, but appears to be the case...
+		alignPos8(bb);
 				
-		while (bb.position() < 2_000) {
+		Group rootGroup = new Group();
+		
+		skipTo(bb, sb.rootGroupSymbolTableEntry.getOffsetTREE());
+		readSignature(bb, BLOCK_ID_TREE);
+		rootGroup.tree = readTREE(bb, sLen, sOffs, sb);
+
+		skipTo(bb, sb.rootGroupSymbolTableEntry.getOffsetHEAP());
+		readSignature(bb, BLOCK_ID_HEAP);
+		rootGroup.heap = readHEAP(bb, sLen, sOffs);
+
+		alignPos8(bb);
+		
+		readAny(bb, sb, 1_200);
+		
+		//read B-Tree SNOD
+		skipTo(bb, (int) rootGroup.tree.childPointers[0]);
+		readSignature(bb, BLOCK_ID_SNOD);
+		HDF5BlockSNOD rootSNOD = readSNOD(bb, sLen, sOffs, sb);
+		for (int i = 0; i < rootSNOD.symbols.length; i++) {
+			SymbolTableEntry ste = rootSNOD.symbols[i];
+			String name = rootGroup.heap.getLinkName(ste);
+			log("Reading: " + name);
+			skipTo(bb, (int) ste.l8ObjectHeaderAddressO);
+			readDOHeaderPrefix(bb);
+		}
+		
+		
+		bb.position(1800 + 256);
+		
+		readAny(bb, sb, 8200);
+		
+		for (int i = 0; i < 200; i++) {
+			log(bb.position(), bb.get());
+		}
+	}
+
+
+	private static void readAny(MappedByteBuffer bb, HDF5BlockSBHeader sb, int max) {
+		int sLen = sb.getSizeLen();
+		int sOffs = sb.getSizeOffset();
+		while (bb.position() < max) {
 			int ii = Integer.reverseBytes(bb.getInt());  //Not reversed!!!! TODO?
 			switch (ii) {
 			case BLOCK_ID_TREE:
-				readTREE(bb, sOffs);
+				readTREE(bb, sLen, sOffs, sb);
 				break;
 			case BLOCK_ID_HEAP:
 				readHEAP(bb, sLen, sOffs);
@@ -156,52 +203,75 @@ public class Reader {
 				}
 			}
 		}
-		
-		
-		for (int i = 0; i < 200; i++) {
-			log(bb.position(), bb.get());
-		}
 	}
-
+	
+	private static int readSignature(MappedByteBuffer bb, int blockId) {
+		int ii = Integer.reverseBytes(bb.getInt());  //Not reversed!!!! TODO?
+		if (ii != blockId) {
+			throw new IllegalStateException();
+		}
+		return ii;
+	}
 
 	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, int offset) {
 		int pos = bb.position();
-		DOHeaderPrefix h = new DOHeaderPrefix(offset);
+		bb.position(pos + offset);
+		DOHeaderPrefix h = readDOHeaderPrefix(bb);
+		bb.position(pos);
+		return h;
+	}
+	
+	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb) {
+		//IV.A.1.a. Version 1 Data Object Header Prefix
+		DOHeaderPrefix h = new DOHeaderPrefix(bb.position());
 		h.b0Version = bb.get();
 		h.b1Zero = bb.get();
-		h.s2TotalNumMsg = read2(bb);
+		h.s2TotalNumMsg = read2(bb) * 2;
 		h.i4ObjRefCount = read4(bb);
 		h.i8ObjHeaderSize = read4(bb);
 
 		log(h.toString());
 
-		//TODO for the header, thera are only 3 messages, even though it claims to be 4????
+		//The message count may be too large, because it may contain "continuation messages" that are stored elsewhere (?) 
+		int currentPos = bb.position();
+		int maxPos = currentPos + h.i8ObjHeaderSize;
 		
 		h.messages = new DOHeaderMessage[h.s2TotalNumMsg];
 		for (int i = 0; i < h.s2TotalNumMsg; i++) {
 			h.messages[i] = readDOHeaderMessage(bb);
+			if (bb.position() >= maxPos) {
+				if (bb.position() > maxPos) {
+					//TODO?!?!?
+					//throw new IllegalStateException("Exceeded data boundary for Object Headers");
+					bb.position(maxPos);
+				}
+				break;
+			}
 		}
-				
-		bb.position(pos);
 		return h;
 	}
 
 	private DOHeaderMessage readDOHeaderMessage(MappedByteBuffer bb) {
+		//As defined in LOWER PART of 
+		//IV.A.1.a. Version 1 Data Object Header Prefix
 		DOHeaderMessage h = new DOHeaderMessage(bb.position());
 		h.s12HeaderMsgType = read2(bb);
 		h.s14SizeHeaderMsgData = read2(bb);
-		h.b16HeaderMsgFlags = read1(bb);
+		h.b16HeaderMsgFlags = Byte.toUnsignedInt(read1(bb));
 		h.b17Zero = read1(bb);
 		h.b18Zero = read1(bb);
 		h.b19Zero = read1(bb);
 
-		//TODO read h.data
+		if (h.s14SizeHeaderMsgData > 0) {
+			h.b20data = new byte[h.s14SizeHeaderMsgData];
+			bb.get(h.b20data);
+		}
 		
 		log(h.toString());
 		return h;
 	}
 
-	private static HDF5BlockTREE readTREE(MappedByteBuffer bb, int sOffs) {
+	private static HDF5BlockTREE readTREE(MappedByteBuffer bb, int sLen, int sOffs, HDF5BlockSBHeader sb) {
 		HDF5BlockTREE n = new HDF5BlockTREE(bb.position()-4);
 		int type = n.b4nodeType = bb.get();
 		n.b5nodeLevel = bb.get();
@@ -210,24 +280,55 @@ public class Reader {
 		n.l16addreRightSiblO = getNBytes(bb, sOffs);
 		
 		log(n.toString());
-
+		
+		boolean isLeaf = n.b5nodeLevel == 0;
+		
+		//0 	This tree points to group nodes.
+		//1 	This tree points to raw data chunk nodes.
+		int maxNChildren;
 		if (type == 0) {
-			n.entries = new HDF5Entry[nEntries];
-			
-			for (int i = 0; i < nEntries; i++) {
-				n.entries[i] = readTreeEntry(bb, sOffs);
+			//group nodes
+			if (isLeaf) {
+				maxNChildren = sb.s16gLeafNodeK;
+			} else {
+				maxNChildren = sb.s18gIntNodeK;
 			}
 		} else if (type == 1) {
+			//raw data chunk nodes
+			if (isLeaf) {
+				//What is the K here????
+				throw new IllegalArgumentException("????");
+			} else {
+				maxNChildren = sb.s24isIntNodeK;
+			}
+		} else {
+			throw new IllegalArgumentException("type == " + type);
+		}
+		int maxNKeys = maxNChildren + 1;
+
+		if (type == 0) {
+			long[] childPointers = new long[maxNChildren];
+			long[] keys = new long[maxNKeys];
+			//Keys are an offset into the local HEAP
+			keys[0] = getNBytes(bb, sLen);
+			for (int i = 0; i < nEntries; i++) {
+				
+				//TODO read Child -> is this really OFFSET sized?
+				childPointers[i] = getNBytes(bb, sOffs);
+				keys[i+1] = getNBytes(bb, sLen);
+				log("ChildPointer: " + keys[i] + " -- " + childPointers[i] + " -- " + keys[i+1]);
+			}
+			n.keys = keys;
+			n.childPointers = childPointers;
+
+			//Example for CHILD: a SNOD NODE!
+			
+		} else if (type == 1) {
+			throw new UnsupportedOperationException(); //TODO
 		}		
 		return n;
 	}
 
-
-	private static HDF5Entry readTreeEntry(MappedByteBuffer bb, int sOffs) {
-		// TODO Auto-generated method stub
-		//throw new UnsupportedOperationException();
-		return null;
-	}
 
 	private static HDF5BlockHEAP readHEAP(MappedByteBuffer bb, int sLen, int sOffs) {
 		HDF5BlockHEAP n = new HDF5BlockHEAP(bb.position()-4);
@@ -241,6 +342,35 @@ public class Reader {
 		
 		log(n.toString());
 
+		//data is 8-byte aligned. We can estimate a max-number of data entries:
+		int maxN = (int) (n.l8dataSegmentSize / 8);
+		int currentFreeOffset = (int) n.l16freeListOffset;
+		int maxOffset = (int) (n.l24dataSegementOffset + n.l8dataSegmentSize);
+		
+		n.heapOffset = new int[maxN];
+		n.heap = new String[maxN];
+		int heapId = 0;
+		
+		//TODO dangerous? Maybe we should restore the position afterwards?
+		skipTo(bb, (int) n.l24dataSegementOffset);
+		while (bb.position() < maxOffset) {
+			int localOffset = (int) (bb.position() - n.l24dataSegementOffset);
+			if (localOffset == currentFreeOffset) {
+				//read free (new pos may be 1 (indicating last free block)
+				currentFreeOffset = (int) getNBytes(bb, sLen);
+				int sizeFB = (int) getNBytes(bb, sLen);
+				skipTo(bb, bb.position() - 2*sLen + sizeFB);
+			} else {
+				//read data
+				n.heapSize++;
+				n.heapOffset[heapId] = localOffset;
+				n.heap[heapId++] = readLinkName(bb);
+				alignPos8(bb);
+				log("HeapObject: " + n.heapOffset[heapId-1] + " - " + n.heap[heapId-1]);
+			}
+//			System.out.println("xxxx " + bb.position() + " / " + maxOffset);
+		}
+		
 		return n;
 	}
 
@@ -269,6 +399,7 @@ public class Reader {
 	}
 
 	private static SymbolTableEntry readSymbolTableEntry(MappedByteBuffer bb, int sLen, int sOffs) {
+		//III.C. Disk Format: Level 1C - Symbol Table Entry
 		SymbolTableEntry e = new SymbolTableEntry(bb.position());
 		e.l0LinkNameOffsetO = getNBytes(bb, sOffs);
 		e.l8ObjectHeaderAddressO = (int) getNBytes(bb, sOffs);
@@ -309,6 +440,16 @@ public class Reader {
 		while (c != 0) {
 			sb.append(c);
 			c = bb.getChar(++pos);
+		}
+		return sb.toString();
+	}
+	
+	private static String readLinkName(MappedByteBuffer bb) {
+		StringBuilder sb = new StringBuilder();
+		char c = (char) bb.get();
+		while (c != 0) {
+			sb.append(c);
+			c = (char) bb.get();
 		}
 		return sb.toString();
 	}
@@ -392,6 +533,10 @@ public class Reader {
 
 	private static int roundUp8(int n) {
 	    return (n + 7) / 8 * 8;
+	}
+
+	private static void alignPos8(MappedByteBuffer bb) {
+		bb.position(roundUp8(bb.position()));
 	}
 	
 	private void assertPosition(int pos) {
