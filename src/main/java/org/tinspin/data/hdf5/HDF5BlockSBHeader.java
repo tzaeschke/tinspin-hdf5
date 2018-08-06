@@ -107,4 +107,12 @@ class HDF5BlockSBHeader extends HDF5Block {
 	public int getSizeOffset() {
 		return b13sizeOfOffsets;
 	}
+
+	public int getL() {
+		return getSizeLen();
+	}
+
+	public int getO() {
+		return getSizeOffset();
+	}
 }

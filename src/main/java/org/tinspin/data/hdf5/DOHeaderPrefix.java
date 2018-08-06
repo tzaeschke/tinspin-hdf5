@@ -19,7 +19,7 @@ public class DOHeaderPrefix extends HDF5Block {
 	// Object Header Size / 4
 	int i8ObjHeaderSize;
 	
-	DOHeaderMessage[] messages;
+	DOMsg[] messages;
 	
 	public DOHeaderPrefix(int offset) {
 		super(offset);

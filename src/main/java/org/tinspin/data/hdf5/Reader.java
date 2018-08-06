@@ -29,6 +29,7 @@ public class Reader {
 	
 	//static char L = '\n';
 	static String L = "   ";
+	static String NL = "\n    ";
 	
 	private final MappedByteBuffer bb;
 	private int sLen;
@@ -55,12 +56,24 @@ public class Reader {
 		    
 		    if (mappedByteBuffer != null) {
 		    	Reader reader = new Reader(mappedByteBuffer);
+		    	//reader.search((short) 2144); //-> 892
+		    	//reader.search((short) 800); //-> 120
 		    	reader.readHeaderSB();
 		    } else {
 		    	
 		    }
 		} catch (IOException e) {
 			throw new RuntimeException(e);
+		}
+	}
+	
+	private void search(short x) {
+		short x2 = Short.reverseBytes(x);
+		for (int i = 9; i < 3000; i++) {
+			short s = bb.getShort();
+			if (s == x || s == x2) {
+				System.out.println("Pos: " + (bb.position() - 2));
+			}
 		}
 	}
 	
@@ -75,6 +88,10 @@ public class Reader {
 	private static final int BLOCK_ID_SNOD = 0x53_4E_4F_44;
 	//										GCOL
 	private static final int BLOCK_ID_GCOL = 0x47_43_4F_4C;
+	
+	private static final short MSG_0001_DATA_SPACE = 0x0001;
+	private static final short MSG_0003_DATA_TYPE = 0x0003;
+	private static final short MSG_0010_CONTINUATION = 0x0010;
 	
 	private Reader(MappedByteBuffer bb) {
 		this.bb = bb;
@@ -132,7 +149,7 @@ public class Reader {
 		//sb.i60rootGSTE = read4(bb);
 		//sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb, sb.rootGroupSymbolTableEntry.l8ObjectHeaderAddressO);
 		skipTo(bb, sb.rootGroupSymbolTableEntry.l8ObjectHeaderAddressO);
-		sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb);
+		sb.rootGroupSymbolTableEntryHEADER = readDOHeaderPrefix(bb, sb);
 		
 		//Not specified, but appears to be the case...
 		alignPos8(bb);
@@ -160,7 +177,7 @@ public class Reader {
 			String name = rootGroup.heap.getLinkName(ste);
 			log("Reading: " + name);
 			skipTo(bb, (int) ste.l8ObjectHeaderAddressO);
-			readDOHeaderPrefix(bb);
+			readDOHeaderPrefix(bb, sb);
 		}
 		
 		
@@ -213,61 +230,188 @@ public class Reader {
 		return ii;
 	}
 
-	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, int offset) {
+	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, HDF5BlockSBHeader sb, int offset) {
 		int pos = bb.position();
 		bb.position(pos + offset);
-		DOHeaderPrefix h = readDOHeaderPrefix(bb);
+		DOHeaderPrefix h = readDOHeaderPrefix(bb, sb);
 		bb.position(pos);
 		return h;
 	}
 	
-	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb) {
+	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, HDF5BlockSBHeader sb) {
 		//IV.A.1.a. Version 1 Data Object Header Prefix
 		DOHeaderPrefix h = new DOHeaderPrefix(bb.position());
 		h.b0Version = bb.get();
 		h.b1Zero = bb.get();
-		h.s2TotalNumMsg = read2(bb) * 2;
+		h.s2TotalNumMsg = read2(bb);
 		h.i4ObjRefCount = read4(bb);
 		h.i8ObjHeaderSize = read4(bb);
 
 		log(h.toString());
+		alignPos8(bb);
 
 		//The message count may be too large, because it may contain "continuation messages" that are stored elsewhere (?) 
 		int currentPos = bb.position();
 		int maxPos = currentPos + h.i8ObjHeaderSize;
 		
-		h.messages = new DOHeaderMessage[h.s2TotalNumMsg];
+		h.messages = new DOMsg[h.s2TotalNumMsg];
 		for (int i = 0; i < h.s2TotalNumMsg; i++) {
-			h.messages[i] = readDOHeaderMessage(bb);
-			if (bb.position() >= maxPos) {
-				if (bb.position() > maxPos) {
-					//TODO?!?!?
-					//throw new IllegalStateException("Exceeded data boundary for Object Headers");
-					bb.position(maxPos);
-				}
-				break;
+			DOMsg m = readDOHeaderMessage(bb, sb);
+			h.messages[i] = m;
+			if (m.s12HeaderMsgType == MSG_0010_CONTINUATION) {
+				bb.position((int) ((DOMsg0010)m).offsetO);
+				//TODO use lengthL
 			}
 		}
+//		if (bb.position() >= maxPos) {
+//			if (bb.position() > maxPos) {
+//				//TODO?!?!?
+//				throw new IllegalStateException("Exceeded data boundary for Object Headers");
+		//for Continuation messages
+				bb.position(maxPos);
+//			}
+//		}
 		return h;
 	}
 
-	private DOHeaderMessage readDOHeaderMessage(MappedByteBuffer bb) {
+	private DOMsg readDOHeaderMessage(MappedByteBuffer bb, HDF5BlockSBHeader sb) {
 		//As defined in LOWER PART of 
 		//IV.A.1.a. Version 1 Data Object Header Prefix
-		DOHeaderMessage h = new DOHeaderMessage(bb.position());
-		h.s12HeaderMsgType = read2(bb);
+		short type = read2(bb);
+		DOMsg h = DOMsg.create(type, bb.position() - 2);
+
+		h.s12HeaderMsgType = type;
 		h.s14SizeHeaderMsgData = read2(bb);
+		int posStart = bb.position();
+		int posEnd = posStart + h.s14SizeHeaderMsgData + 4;  
 		h.b16HeaderMsgFlags = Byte.toUnsignedInt(read1(bb));
 		h.b17Zero = read1(bb);
 		h.b18Zero = read1(bb);
 		h.b19Zero = read1(bb);
+		
+		readDOMessage(bb, sb, h);
+		log(h.toString());
 
-		if (h.s14SizeHeaderMsgData > 0) {
-			h.b20data = new byte[h.s14SizeHeaderMsgData];
-			bb.get(h.b20data);
+		int pos = bb.position();
+		if (pos != posEnd) {
+			new IllegalStateException("pos/size = " + pos + " / " + posEnd).printStackTrace();;
+		}
+		bb.position(posEnd); 
+
+		return h;
+	}
+
+	private static DOMsg readDOMessage(MappedByteBuffer bb, HDF5BlockSBHeader sb, DOMsg h) {
+		switch (h.s12HeaderMsgType) {
+		case 0:
+			break;
+		case 0x0001:
+			DOMsg0001 m0001 = (DOMsg0001) h;
+			m0001.b0Version = read1(bb);
+			int dim = m0001.b1Dimensionality = read1(bb);
+			m0001.b2Flags = read1(bb);
+			m0001.b3Zero = read1(bb);
+			m0001.i4Zero = read4(bb);
+			m0001.dataDim = new long[dim];
+			m0001.dataDimMax = new long[dim];
+			for (int i = 0; i < dim; i++) {
+				m0001.dataDim[i] = getNBytes(bb, sb.getL());
+			}
+			for (int i = 0; i < dim; i++) {
+				m0001.dataDimMax[i] = getNBytes(bb, sb.getL());
+			}
+			break;
+		case 0x0003: {
+			DOMsg0003 m = (DOMsg0003) h;
+			m.b0Version = read1(bb);
+			m.b1Bits7 = read1(bb);
+			m.b2Bits15 = read1(bb);
+			m.b3Bits23 = read1(bb);
+			m.i4Size = read4(bb);
+			if (m.i4Size > 0) {
+				m.properties = new byte[m.i4Size];
+				bb.get(m.properties);
+			}
+			break;
+		}
+		case 0x0005: {
+			DOMsg0005 m = (DOMsg0005) h;
+			m.b0Version = read1(bb);
+			m.b1SpacAllocTime = read1(bb);
+			m.b2FillValueWriteTime = read1(bb);
+			m.b3FillValueDefined = read1(bb);
+			if (m.b0Version < 2 || m.b3FillValueDefined > 0) {
+				m.i4Size = read4(bb);
+				if (m.i4Size > 0) {
+					m.l8FillValue = getNBytes(bb, m.i4Size);
+				}
+			}
+			break;
+		}
+		case 0x0008: {
+			DOMsg0008 m = (DOMsg0008) h;
+			m.b0Version = read1(bb);
+			m.b1Dimensionality = read1(bb);
+			m.b2LayoutClass = read1(bb);
+			m.b3Zero = read1(bb);
+			m.i4Zero = read4(bb);
+			if (m.b2LayoutClass >=1) {
+				m.l8DataAddressO = getNBytes(bb, sb.getO());
+			}
+			break;
+		}
+		case 0x000C: {
+			DOMsg000C m = (DOMsg000C) h;
+			m.b0Version = read1(bb);
+			m.b1Zero = read1(bb);
+			m.s2NameSize = read2(bb);
+			m.s4DatatypeSize = read2(bb);
+			m.s6DataspaceSize = read2(bb);
+			m.name = readLinkName(bb);
+			alignPos8(bb);
+			m.datatype = (DOMsg0003) readDOMessage(bb, sb, 
+					//TODO position?
+					DOMsg.create(MSG_0003_DATA_TYPE, -bb.position()));
+			alignPos8(bb);
+			m.dataspace = (DOMsg0001) readDOMessage(bb, sb, 
+					//TODO position?
+					DOMsg.create(MSG_0001_DATA_SPACE, -bb.position()));
+			alignPos8(bb);
+			int dataSize = 1; 
+//			if (m.b2LayoutClass >=1) {
+//				m.l8DataAddressO = getNBytes(bb, sb.getO());
+//			}
+			break;
+		}
+		case 0x0010: {
+			DOMsg0010 m = (DOMsg0010) h;
+			m.offsetO = getNBytes(bb, sb.getO());
+			m.lengthL = getNBytes(bb, sb.getL());
+			break;
+		}
+		case 0x0011: {
+			DOMsg0011 m = (DOMsg0011) h;
+			m.l0V1BTreeAddressO = getNBytes(bb, sb.getO());
+			m.l8LocalHeapAddressO = getNBytes(bb, sb.getO());
+			break;
+		}
+		case 0x0012: {
+			DOMsg0012 m = (DOMsg0012) h;
+			m.b0Version = read1(bb);
+			m.b0Version = read1(bb);
+			m.b0Version = read1(bb);
+			m.b0Version = read1(bb);
+			m.i4SecondEpoch = read4(bb);
+			break;
+		}
+		default:
+			if (h.s14SizeHeaderMsgData > 0) {
+				h.b20data = new byte[h.s14SizeHeaderMsgData];
+				bb.get(h.b20data);
+			}
+			break;
 		}
 		
-		log(h.toString());
 		return h;
 	}
 
