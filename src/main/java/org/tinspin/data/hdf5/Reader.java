@@ -14,12 +14,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.EnumSet;
 
 import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
 
 public class Reader {
 
+	public static final boolean DEBUG = false;
+	
 	//File source:
 	//https://github.com/erikbern/ann-benchmarks/blob/master/README.md
 	
@@ -77,6 +80,16 @@ public class Reader {
 		}
 	}
 	
+	private static void preview(MappedByteBuffer bb, int nBytes, String prefix) {
+		if (DEBUG) {
+//		int pos = bb.position();
+//		byte[] buffer = new byte[nBytes];
+//		bb.get(buffer);
+//		System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+//		bb.position(pos);
+		}
+	}
+	
 	//									\211 H D F \r \n \032 \n
 	private static long SB_FF_HEADER = 0x89_48_44_46_0d_0a_1a_0aL;
 	
@@ -89,9 +102,44 @@ public class Reader {
 	//										GCOL
 	private static final int BLOCK_ID_GCOL = 0x47_43_4F_4C;
 	
-	private static final short MSG_0001_DATA_SPACE = 0x0001;
-	private static final short MSG_0003_DATA_TYPE = 0x0003;
-	private static final short MSG_0010_CONTINUATION = 0x0010;
+	
+	enum MSG {
+		MSG_0000_NIL			(0x0000, "NIL"),
+		MSG_0001_DATA_SPACE		(0x0001, "DataSpace"),
+		MSG_0003_DATA_TYPE		(0x0003, "DataType"),
+		MSG_0005_FILL_VALUE		(0x0005, "FillValue"),
+		MSG_0008_DATA_LAYOUT	(0x0008, "DataLayout"),
+		MSG_000C_ATTRIBUTE		(0x000C, "Attribute"),
+		MSG_0010_CONTINUATION 	(0x0010, "Continuation"),
+		MSG_0011_SYMBOL_TABLE 	(0x0011, "SymbolTable"),
+		MSG_0012_OBJ_MOD_TIME 	(0x0012, "ObjectModificationTime");
+		
+		private final short type;
+		private final String label;
+		
+		MSG(int type, String label) {
+			this.type = (short) type;
+			this.label = label;
+		}
+		
+		short type() {
+			return type;
+		}
+		
+		String label() {
+			return label;
+		}
+
+		public static MSG valueOf(short type) {
+			for (int i = 0; i < values().length; i++) {
+				if (values()[i].type == type) {
+					return values()[i];
+				}
+			}
+			throw new UnsupportedOperationException("typeId=" + type);
+		}
+	}
+	
 	
 	private Reader(MappedByteBuffer bb) {
 		this.bb = bb;
@@ -181,7 +229,7 @@ public class Reader {
 		}
 		
 		
-		bb.position(1800 + 256);
+		jumpTo(bb, 1800 + 256);
 		
 		readAny(bb, sb, 2200);
 		
@@ -232,9 +280,9 @@ public class Reader {
 
 	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, HDF5BlockSBHeader sb, int offset) {
 		int pos = bb.position();
-		bb.position(pos + offset);
+		jumpTo(bb, pos + offset);
 		DOHeaderPrefix h = readDOHeaderPrefix(bb, sb);
-		bb.position(pos);
+		jumpTo(bb, pos);
 		return h;
 	}
 	
@@ -258,8 +306,8 @@ public class Reader {
 		for (int i = 0; i < h.s2TotalNumMsg; i++) {
 			DOMsg m = readDOHeaderMessage(bb, sb);
 			h.messages[i] = m;
-			if (m.s12HeaderMsgType == MSG_0010_CONTINUATION) {
-				bb.position((int) ((DOMsg0010)m).offsetO);
+			if (m.s12HeaderMsgType == MSG.MSG_0010_CONTINUATION) {
+				jumpTo(bb, (int) ((DOMsg0010)m).offsetO);
 				//TODO use lengthL
 			}
 		}
@@ -268,19 +316,21 @@ public class Reader {
 //				//TODO?!?!?
 //				throw new IllegalStateException("Exceeded data boundary for Object Headers");
 		//for Continuation messages
-				bb.position(maxPos);
+		jumpTo(bb, maxPos);
 //			}
 //		}
 		return h;
 	}
 
 	private DOMsg readDOHeaderMessage(MappedByteBuffer bb, HDF5BlockSBHeader sb) {
+		preview(bb, 8, "header");
 		//As defined in LOWER PART of 
 		//IV.A.1.a. Version 1 Data Object Header Prefix
 		short type = read2(bb);
-		DOMsg h = DOMsg.create(type, bb.position() - 2);
+		DOMsg h = DOMsg.create(MSG.valueOf(type), bb.position() - 2);
 
-		h.s12HeaderMsgType = type;
+		h.s12HeaderMsgTypeId = type;
+		h.s12HeaderMsgType = MSG.valueOf(type);
 		h.s14SizeHeaderMsgData = read2(bb);
 		int posStart = bb.position();
 		int posEnd = posStart + h.s14SizeHeaderMsgData + 4;  
@@ -297,15 +347,16 @@ public class Reader {
 			log("ERROR: pos/size = " + pos + " / " + posEnd); //TODO?
 			new IllegalStateException("pos/size = " + pos + " / " + posEnd).printStackTrace();
 		}
-		bb.position(posEnd); 
+		jumpTo(bb, posEnd); 
 
 		return h;
 	}
 
 	private static DOMsg readDOMessage(MappedByteBuffer bb, HDF5BlockSBHeader sb, DOMsg h) {
+		preview(bb, 8, "MSG" + h.s12HeaderMsgTypeId);
 		switch (h.s12HeaderMsgType) {
-		case 0:
-			break;
+//		case 0:
+//			break;
 		case MSG_0001_DATA_SPACE:
 			DOMsg0001 m0001 = (DOMsg0001) h;
 			m0001.b0Version = read1(bb);
@@ -339,6 +390,24 @@ public class Reader {
 			case 1: //Floating Point
 				nPropSize = 12;  //IEEE? TODO?
 				break;
+			case 9:
+				//base type
+				DOMsg0003 mBaseType = (DOMsg0003) DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position());
+				m.class9BaseType = mBaseType;
+				preview(bb, 16, "baseType");
+				mBaseType.b1Bits7 = read1(bb);
+				boolean isString = (mBaseType.b1Bits7 >> 4) == 1;
+				boolean isNullTerminated = (mBaseType.b1Bits7 & 0x0F) == 0;
+				mBaseType.b2Bits15 = read1(bb);
+				mBaseType.b3Bits23 = read1(bb);
+				mBaseType.i4Size = read4(bb);
+				skip(bb, 12); //TODO ???
+				//TODO ?? 
+//				readDOMessage(bb, sb, m.class9BaseType);
+//				log(m.toString());
+				nPropSize = 0;
+				break;
+//				throw new RuntimeException();
 			default:
 				throw new UnsupportedOperationException("Class: " + m.b0Class);
 			}
@@ -346,7 +415,7 @@ public class Reader {
 			bb.get(m.properties);
 			break;
 		}
-		case 0x0005: {
+		case MSG_0005_FILL_VALUE: {
 			DOMsg0005 m = (DOMsg0005) h;
 			m.b0Version = read1(bb);
 			m.b1SpacAllocTime = read1(bb);
@@ -360,7 +429,7 @@ public class Reader {
 			}
 			break;
 		}
-		case 0x0008: {
+		case MSG_0008_DATA_LAYOUT: {
 			DOMsg0008 m = (DOMsg0008) h;
 			m.b0Version = read1(bb);
 			m.b1Dimensionality = read1(bb);
@@ -372,7 +441,7 @@ public class Reader {
 			}
 			break;
 		}
-		case 0x000C: {
+		case MSG_000C_ATTRIBUTE: {
 			DOMsg000C m = (DOMsg000C) h;
 			m.b0Version = read1(bb);
 			m.b1Zero = read1(bb);
@@ -383,11 +452,11 @@ public class Reader {
 			alignPos8(bb);
 			m.datatype = (DOMsg0003) readDOMessage(bb, sb, 
 					//TODO position?
-					DOMsg.create(MSG_0003_DATA_TYPE, -bb.position()));
+					DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position()));
 			alignPos8(bb);
 			m.dataspace = (DOMsg0001) readDOMessage(bb, sb, 
 					//TODO position?
-					DOMsg.create(MSG_0001_DATA_SPACE, -bb.position()));
+					DOMsg.create(MSG.MSG_0001_DATA_SPACE, bb.position()));
 			alignPos8(bb);
 			int dataSize = 1; 
 //			if (m.b2LayoutClass >=1) {
@@ -401,13 +470,13 @@ public class Reader {
 			m.lengthL = getNBytes(bb, sb.getL());
 			break;
 		}
-		case 0x0011: {
+		case MSG_0011_SYMBOL_TABLE: {
 			DOMsg0011 m = (DOMsg0011) h;
 			m.l0V1BTreeAddressO = getNBytes(bb, sb.getO());
 			m.l8LocalHeapAddressO = getNBytes(bb, sb.getO());
 			break;
 		}
-		case 0x0012: {
+		case MSG_0012_OBJ_MOD_TIME: {
 			DOMsg0012 m = (DOMsg0012) h;
 			m.b0Version = read1(bb);
 			m.b0Version = read1(bb);
@@ -686,6 +755,16 @@ public class Reader {
 	}
 	
 	private static void skipTo(MappedByteBuffer bb, int position) {
+		if (DEBUG) {
+			System.out.println("Skipping from " + bb.position() + " to " + position);
+		}
+		bb.position(position);
+	}
+
+	private static void jumpTo(MappedByteBuffer bb, int position) {
+		if (DEBUG) {
+			System.out.println("Jumping from " + bb.position() + " to " + position);
+		}
 		bb.position(position);
 	}
 

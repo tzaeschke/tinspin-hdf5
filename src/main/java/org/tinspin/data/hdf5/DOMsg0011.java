@@ -25,7 +25,7 @@ public class DOMsg0011 extends DOMsg {
 		
 	
 	public DOMsg0011(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0011_SYMBOL_TABLE);
 	}
 	
 	

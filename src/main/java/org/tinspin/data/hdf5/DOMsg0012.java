@@ -6,9 +6,11 @@
  */
 package org.tinspin.data.hdf5;
 
+import java.util.Date;
+
 /**
  * 0x0012
- * Object Modification Time Continuation Message.
+ * Object Modification Time Message.
  * 
  * @author Tilmann Zäschke
  *
@@ -27,14 +29,14 @@ public class DOMsg0012 extends DOMsg {
 		
 	
 	public DOMsg0012(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0012_OBJ_MOD_TIME);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "ContinuationMessage: " + super.toString() + Reader.L +  
+		return "ObjModTime: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
-				"SecondEpoch=" + i4SecondEpoch;
+				"SecondEpoch=" + i4SecondEpoch + "/" + new Date(i4SecondEpoch*1000);
 	}
 }

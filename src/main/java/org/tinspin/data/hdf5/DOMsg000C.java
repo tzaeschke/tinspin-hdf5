@@ -70,7 +70,7 @@ public class DOMsg000C extends DOMsg {
 	
 	
 	public DOMsg000C(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_000C_ATTRIBUTE);
 	}
 	
 	

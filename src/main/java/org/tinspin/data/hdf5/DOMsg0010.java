@@ -23,7 +23,7 @@ public class DOMsg0010 extends DOMsg {
 		
 	
 	public DOMsg0010(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0010_CONTINUATION);
 	}
 	
 	

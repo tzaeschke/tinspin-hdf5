@@ -11,7 +11,8 @@ import java.util.Arrays;
 public class DOMsg extends HDF5Block {
 	
 	//Header Message Type #1 /2
-	int s12HeaderMsgType;
+	Reader.MSG s12HeaderMsgType;
+	int s12HeaderMsgTypeId;
 	
 	//This value specifies the number of bytes of header message data following 
 	//the header message type and length information for the current message. 
@@ -31,43 +32,45 @@ public class DOMsg extends HDF5Block {
 	byte[] b20data;
 	
 	
-	static DOMsg create(short type, int pos) {
+	static DOMsg create(Reader.MSG type, int pos) {
 		switch (type) {
-		case 0:
-			return new DOMsg(pos);
-		case 0x0001:
+		case MSG_0000_NIL:
+			return new DOMsg0000(pos);
+		case MSG_0001_DATA_SPACE:
 			return new DOMsg0001(pos);
-		case 0x0003:
+		case MSG_0003_DATA_TYPE:
 			return new DOMsg0003(pos);
-		case 0x0005:
+		case MSG_0005_FILL_VALUE:
 			return new DOMsg0005(pos);
-		case 0x0008:
+		case MSG_0008_DATA_LAYOUT:
 			return new DOMsg0008(pos);
-		case 0x000C:
+		case MSG_000C_ATTRIBUTE:
 			return new DOMsg000C(pos);
-		case 0x0010:
+		case MSG_0010_CONTINUATION:
 			return new DOMsg0010(pos);
-		case 0x0011:
+		case MSG_0011_SYMBOL_TABLE:
 			return new DOMsg0011(pos);
-		case 0x0012:
+		case MSG_0012_OBJ_MOD_TIME:
 			return new DOMsg0012(pos);
 
 		default:
 			//return new DOMsg(pos);
-			throw new UnsupportedOperationException("Message type: 0x" + Integer.toHexString(type));
+			throw new UnsupportedOperationException("Message type: 0x" + type.type());
 		}
 	}
 	
 	
-	public DOMsg(int offset) {
+	public DOMsg(int offset, Reader.MSG type) {
 		super(offset);
+		this.s12HeaderMsgType = type;
+		this.s12HeaderMsgTypeId = type.type();
 	}
 	
 	
 	@Override
 	public String toString() {
 		return "DOMsg(" + getOffset() + ")" + Reader.L + 
-				"HeaderMsgType=0x" + Integer.toHexString(s12HeaderMsgType) + Reader.L +
+				"HeaderMsgType=0x" + Integer.toHexString(s12HeaderMsgType.type()) + Reader.L +
 				"SizeHeaderMsgData=" + s14SizeHeaderMsgData + Reader.L +
 				"HeaderMsgFlags=0b" + Integer.toBinaryString(b16HeaderMsgFlags) + Reader.L + 
 				"data=" + Arrays.toString(b20data);// + Reader.L +

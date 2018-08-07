@@ -32,9 +32,10 @@ public class DOMsg0003 extends DOMsg {
 
 	//Properties
 	byte[] properties;
+	DOMsg0003 class9BaseType;
 	
 	public DOMsg0003(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0003_DATA_TYPE);
 	}
 	
 	
@@ -47,7 +48,10 @@ public class DOMsg0003 extends DOMsg {
 				"Bits15=0b" + Integer.toBinaryString(b2Bits15) + Reader.L +
 				"Bits23=0b" + Integer.toBinaryString(b3Bits23) + Reader.L +
 				"Size=" + i4Size + Reader.L +
-				"Properties=" + Arrays.toString(properties);
+				(properties == null ? "" : ("Properties=" + Arrays.toString(properties) + Reader.L)) +  
+				(class9BaseType == null ? "" : 
+					(Reader.NL + "Class9BaseType=" + class9BaseType.toString() + Reader.L)) 
+						;
 	}
 
 }

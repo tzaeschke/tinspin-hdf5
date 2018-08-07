@@ -30,7 +30,7 @@ public class DOMsg0008 extends DOMsg {
 	
 	
 	public DOMsg0008(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0008_DATA_LAYOUT);
 	}
 	
 	

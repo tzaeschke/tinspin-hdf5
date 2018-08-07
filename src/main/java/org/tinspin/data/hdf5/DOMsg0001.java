@@ -34,7 +34,7 @@ public class DOMsg0001 extends DOMsg {
 	long[] dataDimMax;
 	
 	public DOMsg0001(int offset) {
-		super(offset);
+		super(offset, Reader.MSG.MSG_0001_DATA_SPACE);
 	}
 	
 	
