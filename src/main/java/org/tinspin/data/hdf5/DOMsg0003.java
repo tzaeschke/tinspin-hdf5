@@ -20,6 +20,7 @@ public class DOMsg0003 extends DOMsg {
 	
 	//Class and Version
 	int b0Version;
+	int b0Class;
 	//Class Bit Field, Bits 0-7
 	int b1Bits7;
 	//Class Bit Field, Bits 8-15 	
@@ -40,10 +41,11 @@ public class DOMsg0003 extends DOMsg {
 	@Override
 	public String toString() {
 		return "DataTypeMessage: " + super.toString() + Reader.L +  
-				"ClassVersion=" + b0Version + Reader.L +
-				"Bits7=" + b1Bits7 + Reader.L +
-				"Bits15=" + b2Bits15 + Reader.L +
-				"Bits23=" + b3Bits23 + Reader.L +
+				"Version=" + b0Version + Reader.L +
+				"Class=" + b0Class + Reader.L +
+				"Bits7=0b" + Integer.toBinaryString(b1Bits7) + Reader.L +
+				"Bits15=0b" + Integer.toBinaryString(b2Bits15) + Reader.L +
+				"Bits23=0b" + Integer.toBinaryString(b3Bits23) + Reader.L +
 				"Size=" + i4Size + Reader.L +
 				"Properties=" + Arrays.toString(properties);
 	}

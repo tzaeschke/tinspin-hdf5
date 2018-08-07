@@ -67,9 +67,9 @@ public class DOMsg extends HDF5Block {
 	@Override
 	public String toString() {
 		return "DOMsg(" + getOffset() + ")" + Reader.L + 
-				"HeaderMsgType=" + s12HeaderMsgType + " /" + Integer.toHexString(s12HeaderMsgType) + Reader.L +
+				"HeaderMsgType=0x" + Integer.toHexString(s12HeaderMsgType) + Reader.L +
 				"SizeHeaderMsgData=" + s14SizeHeaderMsgData + Reader.L +
-				"HeaderMsgFlags=" + b16HeaderMsgFlags + "=" + Integer.toBinaryString(b16HeaderMsgFlags) + Reader.L + 
+				"HeaderMsgFlags=0b" + Integer.toBinaryString(b16HeaderMsgFlags) + Reader.L + 
 				"data=" + Arrays.toString(b20data);// + Reader.L +
 
 				//Reserved (zero)

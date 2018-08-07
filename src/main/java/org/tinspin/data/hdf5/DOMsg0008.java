@@ -36,7 +36,7 @@ public class DOMsg0008 extends DOMsg {
 	
 	@Override
 	public String toString() {
-		return "DataspaceMessage: " + super.toString() + Reader.L +  
+		return "DataLayoutMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"Dimensionality=" + b1Dimensionality + Reader.L +
 				"LayoutClass=" + b2LayoutClass + Reader.L +

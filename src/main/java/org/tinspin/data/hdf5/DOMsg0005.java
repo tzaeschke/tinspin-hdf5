@@ -36,7 +36,7 @@ public class DOMsg0005 extends DOMsg {
 	
 	@Override
 	public String toString() {
-		return "DataspaceMessage: " + super.toString() + Reader.L +  
+		return "FillValueMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"SpacAllocTime=" + b1SpacAllocTime + Reader.L +
 				"FillValueWriteTime=" + b2FillValueWriteTime + Reader.L +

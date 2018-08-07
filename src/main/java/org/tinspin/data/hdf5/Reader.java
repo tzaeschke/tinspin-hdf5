@@ -183,11 +183,11 @@ public class Reader {
 		
 		bb.position(1800 + 256);
 		
-		readAny(bb, sb, 8200);
+		readAny(bb, sb, 2200);
 		
-		for (int i = 0; i < 200; i++) {
-			log(bb.position(), bb.get());
-		}
+//		for (int i = 0; i < 200; i++) {
+//			log(bb.position(), bb.get());
+//		}
 	}
 
 
@@ -294,7 +294,8 @@ public class Reader {
 
 		int pos = bb.position();
 		if (pos != posEnd) {
-			new IllegalStateException("pos/size = " + pos + " / " + posEnd).printStackTrace();;
+			log("ERROR: pos/size = " + pos + " / " + posEnd); //TODO?
+			new IllegalStateException("pos/size = " + pos + " / " + posEnd).printStackTrace();
 		}
 		bb.position(posEnd); 
 
@@ -305,7 +306,7 @@ public class Reader {
 		switch (h.s12HeaderMsgType) {
 		case 0:
 			break;
-		case 0x0001:
+		case MSG_0001_DATA_SPACE:
 			DOMsg0001 m0001 = (DOMsg0001) h;
 			m0001.b0Version = read1(bb);
 			int dim = m0001.b1Dimensionality = read1(bb);
@@ -321,17 +322,28 @@ public class Reader {
 				m0001.dataDimMax[i] = getNBytes(bb, sb.getL());
 			}
 			break;
-		case 0x0003: {
+		case MSG_0003_DATA_TYPE: {
 			DOMsg0003 m = (DOMsg0003) h;
 			m.b0Version = read1(bb);
+			m.b0Class = m.b0Version & 0x0F;  //Bottom 4 bits
+			m.b0Version >>>= 4; //Top 4 bits
 			m.b1Bits7 = read1(bb);
 			m.b2Bits15 = read1(bb);
 			m.b3Bits23 = read1(bb);
 			m.i4Size = read4(bb);
-			if (m.i4Size > 0) {
-				m.properties = new byte[m.i4Size];
-				bb.get(m.properties);
+			int nPropSize;
+			switch (m.b0Class) {
+			case 0: //Fixed Point
+				nPropSize = 2 + 2;  //Offset + Precision //TODO?
+				break;
+			case 1: //Floating Point
+				nPropSize = 12;  //IEEE? TODO?
+				break;
+			default:
+				throw new UnsupportedOperationException("Class: " + m.b0Class);
 			}
+			m.properties = new byte[nPropSize];
+			bb.get(m.properties);
 			break;
 		}
 		case 0x0005: {
@@ -383,7 +395,7 @@ public class Reader {
 //			}
 			break;
 		}
-		case 0x0010: {
+		case MSG_0010_CONTINUATION: {
 			DOMsg0010 m = (DOMsg0010) h;
 			m.offsetO = getNBytes(bb, sb.getO());
 			m.lengthL = getNBytes(bb, sb.getL());
@@ -411,6 +423,8 @@ public class Reader {
 			}
 			break;
 		}
+		
+		alignPos8(bb);
 		
 		return h;
 	}
