@@ -12,7 +12,7 @@ import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
  */
 class HDF5BlockSBHeader extends HDF5Block {
 	//Version # of Superblock
-	int b8sbVersion;
+	//int b8sbVersion;
 	//Version # of File's Free Space Storage
 	int b9ffssVersion;
 	//Version # of Root Group Symbol Table Entry 	
@@ -51,15 +51,15 @@ class HDF5BlockSBHeader extends HDF5Block {
 	SymbolTableEntry rootGroupSymbolTableEntry;
 	DOHeaderPrefix rootGroupSymbolTableEntryHEADER;
 	
-	public HDF5BlockSBHeader(int offset) {
-		super(offset);
+	public HDF5BlockSBHeader(int offset, int version) {
+		super(offset, version);
 	}
 	
 	@Override
 	public String toString() {
 		return "HEADER(" + getOffset() + ")" + Reader.L + 
 				//Version # of Superblock
-				"b8sbVersion=" + b8sbVersion + Reader.L +
+				"b8sbVersion=" + getVersion() + Reader.L +
 				//Version # of File's Free Space Storage
 				"b9ffssVersion=" + b9ffssVersion + Reader.L +
 				//Version # of Root Group Symbol Table Entry 	

@@ -61,7 +61,7 @@ public class DOMsg extends HDF5Block {
 	
 	
 	public DOMsg(int offset, Reader.MSG type) {
-		super(offset);
+		super(offset, Reader.NO_VERSION);
 		this.s12HeaderMsgType = type;
 		this.s12HeaderMsgTypeId = type.type();
 	}

@@ -14,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.EnumSet;
 
 import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
@@ -22,6 +21,8 @@ import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
 public class Reader {
 
 	public static final boolean DEBUG = false;
+	
+	static final int NO_VERSION = -1;
 	
 	//File source:
 	//https://github.com/erikbern/ann-benchmarks/blob/master/README.md
@@ -156,10 +157,9 @@ public class Reader {
 			bb.position(headerPos);
 		}
 		
-		HDF5BlockSBHeader sb = new HDF5BlockSBHeader(headerPos);
-		sb.b8sbVersion = bb.get();
-		if (sb.b8sbVersion != 0 && sb.b8sbVersion != 1) {
-			throw new IllegalStateException("Superblock version not supported: " + sb.b8sbVersion);
+		HDF5BlockSBHeader sb = new HDF5BlockSBHeader(headerPos, bb.get());
+		if (sb.getVersion() != 0 && sb.getVersion() != 1) {
+			throw new IllegalStateException("Superblock version not supported: " + sb.getVersion());
 		}
 		sb.b9ffssVersion = bb.get();
 		sb.b10rgsteVersion = bb.get();
@@ -174,7 +174,7 @@ public class Reader {
 		sb.s18gIntNodeK = read2(bb);
 		sb.i20fcf = read4(bb);
 		
-		if (sb.b8sbVersion >= 1) {
+		if (sb.getVersion() >= 1) {
 			sb.s24isIntNodeK = read2(bb);
 			sb.s26zero = read2(bb);
 		}
@@ -184,7 +184,7 @@ public class Reader {
 		sb.l44eofAddrO = getNBytes(bb, sOffs);
 		sb.l52dibAddrO = getNBytes(bb, sOffs);
 		
-		if (sb.b8sbVersion >= 1) {
+		if (sb.getVersion() >= 1) {
 			assertPosition(60);
 		} else {
 			assertPosition(56);
@@ -288,8 +288,7 @@ public class Reader {
 	
 	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, HDF5BlockSBHeader sb) {
 		//IV.A.1.a. Version 1 Data Object Header Prefix
-		DOHeaderPrefix h = new DOHeaderPrefix(bb.position());
-		h.b0Version = bb.get();
+		DOHeaderPrefix h = new DOHeaderPrefix(bb.position(), bb.get());
 		h.b1Zero = bb.get();
 		h.s2TotalNumMsg = read2(bb);
 		h.i4ObjRefCount = read4(bb);
@@ -499,7 +498,7 @@ public class Reader {
 	}
 
 	private static HDF5BlockTREE readTREE(MappedByteBuffer bb, int sLen, int sOffs, HDF5BlockSBHeader sb) {
-		HDF5BlockTREE n = new HDF5BlockTREE(bb.position()-4);
+		HDF5BlockTREE n = new HDF5BlockTREE(bb.position()-4, NO_VERSION);
 		int type = n.b4nodeType = bb.get();
 		n.b5nodeLevel = bb.get();
 		int nEntries = n.s6entriesUsed = read2(bb);
@@ -558,8 +557,8 @@ public class Reader {
 
 
 	private static HDF5BlockHEAP readHEAP(MappedByteBuffer bb, int sLen, int sOffs) {
-		HDF5BlockHEAP n = new HDF5BlockHEAP(bb.position()-4);
-		n.b4Version = bb.get();
+		HDF5BlockHEAP n = new HDF5BlockHEAP(bb.position()-4, bb.get());
+		n.assertVersion(0);
 		n.b5Zero = bb.get();
 		n.b6Zero = bb.get();
 		n.b7Zero = bb.get();
@@ -604,8 +603,8 @@ public class Reader {
 
 	private static HDF5BlockSNOD readSNOD(MappedByteBuffer bb, int sLen, int sOffs, 
 			HDF5BlockSBHeader sb) {
-		HDF5BlockSNOD n = new HDF5BlockSNOD(bb.position()-4);
-		n.b4Version = bb.get();
+		HDF5BlockSNOD n = new HDF5BlockSNOD(bb.position()-4, bb.get());
+		n.assertVersion(1);
 		n.b5Zero = bb.get();
 		n.s6NumberOfUsedEntries = read2(bb);
 		n.symbols = new HDF5BlockSNOD.SymbolTableEntry[n.s6NumberOfUsedEntries];
@@ -627,7 +626,7 @@ public class Reader {
 
 	private static SymbolTableEntry readSymbolTableEntry(MappedByteBuffer bb, int sLen, int sOffs) {
 		//III.C. Disk Format: Level 1C - Symbol Table Entry
-		SymbolTableEntry e = new SymbolTableEntry(bb.position());
+		SymbolTableEntry e = new SymbolTableEntry(bb.position(), NO_VERSION);
 		e.l0LinkNameOffsetO = getNBytes(bb, sOffs);
 		e.l8ObjectHeaderAddressO = (int) getNBytes(bb, sOffs);
 		e.i16CachedType = read4(bb);
@@ -682,8 +681,8 @@ public class Reader {
 	}
 	
 	private static HDF5BlockGCOL readGCOL(MappedByteBuffer bb, int sLen, int sOffs) {
-		HDF5BlockGCOL n = new HDF5BlockGCOL(bb.position()-4);
-		n.b4Version = bb.get();
+		HDF5BlockGCOL n = new HDF5BlockGCOL(bb.position()-4, bb.get());
+		n.assertVersion(1);
 		n.b5Zero = bb.get();
 		n.b6Zero = bb.get();
 		n.b7Zero = bb.get();

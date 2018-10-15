@@ -34,8 +34,8 @@ class HDF5BlockSNOD extends HDF5Block {
 		//CT 2: Offset to Link Value (4 bytes)
 		long i24ct2offsetToLink;
 		
-		public SymbolTableEntry(int offset) {
-			super(offset);
+		public SymbolTableEntry(int offset, int version) {
+			super(offset, version);
 		}
 		
 		@Override
@@ -99,7 +99,7 @@ class HDF5BlockSNOD extends HDF5Block {
 	//Signature == SNOD
 	int i0Signature;
 	//Version == 1
-	int b4Version;
+	//int b4Version;
 	//Reserved (zero)
 	int b5Zero;
 
@@ -108,8 +108,8 @@ class HDF5BlockSNOD extends HDF5Block {
 
 	SymbolTableEntry[] symbols;
 	
-	HDF5BlockSNOD(int offset) {
-		super(offset);
+	HDF5BlockSNOD(int offset, int version) {
+		super(offset, version);
 	}
 	
 	@Override
@@ -118,7 +118,7 @@ class HDF5BlockSNOD extends HDF5Block {
 //				//Signature
 //				"Signature=" + i0Signature + Reader.L +
 				//Version
-				"Version=" + b4Version + Reader.L +
+				"Version=" + getVersion() + Reader.L +
 				//Reserved (zero)
 				//"" + b5Zero + L +
 

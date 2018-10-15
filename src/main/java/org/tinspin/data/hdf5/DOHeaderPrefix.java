@@ -9,7 +9,7 @@ package org.tinspin.data.hdf5;
 public class DOHeaderPrefix extends HDF5Block {
 	
 	//Version / 1
-	int b0Version;
+	//int b0Version;
 	//Reserved (zero) / 1
 	int b1Zero;
 	//Total Number of Header Messages / 2
@@ -21,8 +21,8 @@ public class DOHeaderPrefix extends HDF5Block {
 	
 	DOMsg[] messages;
 	
-	public DOHeaderPrefix(int offset) {
-		super(offset);
+	public DOHeaderPrefix(int offset, int version) {
+		super(offset, version);
 	}
 	
 	
@@ -30,7 +30,7 @@ public class DOHeaderPrefix extends HDF5Block {
 	public String toString() {
 		return "DOHeaderPrefix(" + getOffset() + ")" + Reader.L + 
 				//Version
-				"Version=" + b0Version + Reader.L +
+				"Version=" + getVersion() + Reader.L +
 				//Reserved (zero)
 				//"" + b1Zero + L +
 

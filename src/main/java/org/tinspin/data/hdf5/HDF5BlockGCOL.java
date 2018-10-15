@@ -65,7 +65,7 @@ class HDF5BlockGCOL extends HDF5Block {
 	//Signature == GCOL
 	int i0Signature;
 	//Version
-	int b4Version;
+	//int b4Version;
 	//Reserved (zero)
 	int b5Zero;
 	int b6Zero;
@@ -81,8 +81,8 @@ class HDF5BlockGCOL extends HDF5Block {
 //	Global Heap Object 0 (free space)
 	GlobalHeapObject[] objects;
 
-	public HDF5BlockGCOL(int offset) {
-		super(offset);
+	public HDF5BlockGCOL(int offset, int version) {
+		super(offset, version);
 	}
 	
 	@Override
@@ -91,7 +91,7 @@ class HDF5BlockGCOL extends HDF5Block {
 //				//Signature
 //				"Signature=" + i0Signature + Reader.L +
 				//Version
-				"Version=" + b4Version + Reader.L +
+				"Version=" + getVersion() + Reader.L +
 				//Reserved (zero)
 				//"" + b5Zero + L +
 

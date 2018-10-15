@@ -39,8 +39,8 @@ class HDF5BlockTREE extends HDF5Block {
 	//Address of Child 2KO
 	//Key 2K+1 (variable size)
 	
-	public HDF5BlockTREE(int offset) {
-		super(offset);
+	public HDF5BlockTREE(int offset, int version) {
+		super(offset, version);
 	}
 	
 	@Override

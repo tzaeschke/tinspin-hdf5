@@ -14,7 +14,7 @@ class HDF5BlockHEAP extends HDF5Block {
 	//Signature
 	int i0Signature;
 	//Version
-	int b4Version;
+	//int b4Version;
 	//Reserved (zero)
 	int b5Zero;
 	int b6Zero;
@@ -33,8 +33,8 @@ class HDF5BlockHEAP extends HDF5Block {
 	int[] heapOffset;
 	int heapSize = 0;
 	
-	public HDF5BlockHEAP(int offset) {
-		super(offset);
+	public HDF5BlockHEAP(int offset, int version) {
+		super(offset, version);
 	}
 	
 	@Override
@@ -43,7 +43,7 @@ class HDF5BlockHEAP extends HDF5Block {
 //				//Signature
 //				"Signature=" + i0Signature + Reader.L +
 				//Version
-				"Version=" + b4Version + Reader.L +
+				"Version=" + getVersion() + Reader.L +
 				//Reserved (zero)
 				//"" + b5Zero + L +
 				//"" + b6Zero + L +
