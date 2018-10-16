@@ -289,6 +289,7 @@ public class Reader {
 	private DOHeaderPrefix readDOHeaderPrefix(MappedByteBuffer bb, HDF5BlockSBHeader sb) {
 		//IV.A.1.a. Version 1 Data Object Header Prefix
 		DOHeaderPrefix h = new DOHeaderPrefix(bb.position(), bb.get());
+		h.assertVersion(1);
 		h.b1Zero = bb.get();
 		h.s2TotalNumMsg = read2(bb);
 		h.i4ObjRefCount = read4(bb);
@@ -325,8 +326,12 @@ public class Reader {
 		preview(bb, 8, "header");
 		//As defined in LOWER PART of 
 		//IV.A.1.a. Version 1 Data Object Header Prefix
+
+		//Get version (not every type has a version)
+		byte version = bb.get(bb.position() + 8);
+				
 		short type = read2(bb);
-		DOMsg h = DOMsg.create(MSG.valueOf(type), bb.position() - 2);
+		DOMsg h = DOMsg.create(MSG.valueOf(type), bb.position() - 2, version);
 
 		h.s12HeaderMsgTypeId = type;
 		h.s12HeaderMsgType = MSG.valueOf(type);
@@ -356,9 +361,17 @@ public class Reader {
 		switch (h.s12HeaderMsgType) {
 //		case 0:
 //			break;
+		case MSG_0000_NIL:
+			if (h.s14SizeHeaderMsgData > 0) {
+				h.b20data = new byte[h.s14SizeHeaderMsgData];
+				bb.get(h.b20data);
+			}
+			break;
 		case MSG_0001_DATA_SPACE:
 			DOMsg0001 m0001 = (DOMsg0001) h;
 			m0001.b0Version = read1(bb);
+			//TODO 
+			//m0001.b0Version = assertVersion(1, read1(bb));
 			int dim = m0001.b1Dimensionality = read1(bb);
 			m0001.b2Flags = read1(bb);
 			m0001.b3Zero = read1(bb);
@@ -377,6 +390,7 @@ public class Reader {
 			m.b0Version = read1(bb);
 			m.b0Class = m.b0Version & 0x0F;  //Bottom 4 bits
 			m.b0Version >>>= 4; //Top 4 bits
+			assertVersion(1, (byte) m.getVersion());
 			m.b1Bits7 = read1(bb);
 			m.b2Bits15 = read1(bb);
 			m.b3Bits23 = read1(bb);
@@ -391,7 +405,8 @@ public class Reader {
 				break;
 			case 9:
 				//base type
-				DOMsg0003 mBaseType = (DOMsg0003) DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position());
+				DOMsg0003 mBaseType = (DOMsg0003) DOMsg.create(
+						MSG.MSG_0003_DATA_TYPE, bb.position(), (byte)(m.getVersion() << 4));
 				m.class9BaseType = mBaseType;
 				preview(bb, 16, "baseType");
 				mBaseType.b1Bits7 = read1(bb);
@@ -416,7 +431,8 @@ public class Reader {
 		}
 		case MSG_0005_FILL_VALUE: {
 			DOMsg0005 m = (DOMsg0005) h;
-			m.b0Version = read1(bb);
+			//TODO also allow version=1
+			m.b0Version = assertVersion(2, read1(bb));
 			m.b1SpacAllocTime = read1(bb);
 			m.b2FillValueWriteTime = read1(bb);
 			m.b3FillValueDefined = read1(bb);
@@ -442,20 +458,22 @@ public class Reader {
 		}
 		case MSG_000C_ATTRIBUTE: {
 			DOMsg000C m = (DOMsg000C) h;
-			m.b0Version = read1(bb);
+			m.b0Version = assertVersion(1, read1(bb));
 			m.b1Zero = read1(bb);
 			m.s2NameSize = read2(bb);
 			m.s4DatatypeSize = read2(bb);
 			m.s6DataspaceSize = read2(bb);
 			m.name = readLinkName(bb);
+			//TODO NO PADDING!!!! See spec....
+			new IllegalArgumentException("NO PADDING !!!!").printStackTrace();
 			alignPos8(bb);
 			m.datatype = (DOMsg0003) readDOMessage(bb, sb, 
 					//TODO position?
-					DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position()));
+					DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position(), bb.get(bb.position())));
 			alignPos8(bb);
 			m.dataspace = (DOMsg0001) readDOMessage(bb, sb, 
 					//TODO position?
-					DOMsg.create(MSG.MSG_0001_DATA_SPACE, bb.position()));
+					DOMsg.create(MSG.MSG_0001_DATA_SPACE, bb.position(), bb.get(bb.position())));
 			alignPos8(bb);
 			int dataSize = 1; 
 //			if (m.b2LayoutClass >=1) {
@@ -477,10 +495,10 @@ public class Reader {
 		}
 		case MSG_0012_OBJ_MOD_TIME: {
 			DOMsg0012 m = (DOMsg0012) h;
-			m.b0Version = read1(bb);
-			m.b0Version = read1(bb);
-			m.b0Version = read1(bb);
-			m.b0Version = read1(bb);
+			m.b0Version = assertVersion(1, read1(bb));
+			m.b1Zero = read1(bb);
+			m.b2Zero = read1(bb);
+			m.b3Zero = read1(bb);
 			m.i4SecondEpoch = read4(bb);
 			break;
 		}
@@ -495,6 +513,14 @@ public class Reader {
 		alignPos8(bb);
 		
 		return h;
+	}
+
+	private static byte assertVersion(int expected, byte actual) {
+		if (expected != actual) {
+			throw new IllegalStateException("Illegal block version, expected " +
+					expected + ", got " + actual);
+		}
+		return actual;
 	}
 
 	private static HDF5BlockTREE readTREE(MappedByteBuffer bb, int sLen, int sOffs, HDF5BlockSBHeader sb) {

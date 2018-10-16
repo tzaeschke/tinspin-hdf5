@@ -23,7 +23,7 @@ public class DOMsg0000 extends DOMsg {
 	
 	@Override
 	public String toString() {
-		return "NIL: " + super.toString();
+		return "0000:NIL: " + super.toString();
 	}
 
 }

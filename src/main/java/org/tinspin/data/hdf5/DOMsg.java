@@ -32,36 +32,63 @@ public class DOMsg extends HDF5Block {
 	byte[] b20data;
 	
 	
-	static DOMsg create(Reader.MSG type, int pos) {
+	static DOMsg create(Reader.MSG type, int pos, byte version) {
 		switch (type) {
 		case MSG_0000_NIL:
 			return new DOMsg0000(pos);
 		case MSG_0001_DATA_SPACE:
-			return new DOMsg0001(pos);
+			if (version == 1) {
+				return new DOMsg0001(pos, version);
+			}
+			new IllegalArgumentException("Block 0x0001 version " + version).printStackTrace();
+			return new DOMsg0001(pos, version);
+//TODO			break;
 		case MSG_0003_DATA_TYPE:
-			return new DOMsg0003(pos);
+			version >>>= 4; //Top 4 bits
+			if (version == 1) {
+				return new DOMsg0003(pos, version);
+			}
+			break;
 		case MSG_0005_FILL_VALUE:
-			return new DOMsg0005(pos);
+			if (version == 1 || version == 2) {
+				return new DOMsg0005(pos, version);
+			}
+			break;
 		case MSG_0008_DATA_LAYOUT:
-			return new DOMsg0008(pos);
+			if (version == 121212) {
+				return new DOMsg0008(pos, version);
+			}
+			new IllegalArgumentException("Block 0x0008 version " + version).printStackTrace();
+			return new DOMsg0008(pos, version);
 		case MSG_000C_ATTRIBUTE:
-			return new DOMsg000C(pos);
+			if (version == 1) {
+				return new DOMsg000C(pos, version);
+			}
 		case MSG_0010_CONTINUATION:
 			return new DOMsg0010(pos);
 		case MSG_0011_SYMBOL_TABLE:
 			return new DOMsg0011(pos);
 		case MSG_0012_OBJ_MOD_TIME:
-			return new DOMsg0012(pos);
-
+			if (version == 1) {
+				return new DOMsg0012(pos, version);
+			}
+			break;
 		default:
-			//return new DOMsg(pos);
-			throw new UnsupportedOperationException("Message type: 0x" + type.type());
+			throw new UnsupportedOperationException("Message type: 0x" + 
+					Integer.toHexString(type.type()) + " version " + version);
 		}
+		throw new UnsupportedOperationException("Illegal block version " +
+				version + " for block type 0x" + Integer.toHexString(type.type()));
 	}
 	
 	
 	public DOMsg(int offset, Reader.MSG type) {
-		super(offset, Reader.NO_VERSION);
+		this(offset, type, Reader.NO_VERSION);
+	}
+	
+	
+	public DOMsg(int offset, Reader.MSG type, int version) {
+		super(offset, version);
 		this.s12HeaderMsgType = type;
 		this.s12HeaderMsgTypeId = type.type();
 	}

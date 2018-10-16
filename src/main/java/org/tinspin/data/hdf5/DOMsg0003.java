@@ -34,14 +34,14 @@ public class DOMsg0003 extends DOMsg {
 	byte[] properties;
 	DOMsg0003 class9BaseType;
 	
-	public DOMsg0003(int offset) {
-		super(offset, Reader.MSG.MSG_0003_DATA_TYPE);
+	public DOMsg0003(int offset, int version) {
+		super(offset, Reader.MSG.MSG_0003_DATA_TYPE, version);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "DataTypeMessage: " + super.toString() + Reader.L +  
+		return "0003:DataTypeMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"Class=" + b0Class + Reader.L +
 				"Bits7=0b" + Integer.toBinaryString(b1Bits7) + Reader.L +

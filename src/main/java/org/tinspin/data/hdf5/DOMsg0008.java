@@ -29,14 +29,14 @@ public class DOMsg0008 extends DOMsg {
 	long l8DataAddressO;
 	
 	
-	public DOMsg0008(int offset) {
-		super(offset, Reader.MSG.MSG_0008_DATA_LAYOUT);
+	public DOMsg0008(int offset, int version) {
+		super(offset, Reader.MSG.MSG_0008_DATA_LAYOUT, version);
 	}
 	
-	
+
 	@Override
 	public String toString() {
-		return "DataLayoutMessage: " + super.toString() + Reader.L +  
+		return "0008:DataLayoutMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"Dimensionality=" + b1Dimensionality + Reader.L +
 				"LayoutClass=" + b2LayoutClass + Reader.L +

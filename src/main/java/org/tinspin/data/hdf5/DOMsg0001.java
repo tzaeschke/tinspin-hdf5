@@ -33,14 +33,14 @@ public class DOMsg0001 extends DOMsg {
 	long[] dataDim;
 	long[] dataDimMax;
 	
-	public DOMsg0001(int offset) {
-		super(offset, Reader.MSG.MSG_0001_DATA_SPACE);
+	public DOMsg0001(int offset, int version) {
+		super(offset, Reader.MSG.MSG_0001_DATA_SPACE, version);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "DataspaceMessage: " + super.toString() + Reader.L +  
+		return "0001:DataspaceMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"Dimensionality=" + b1Dimensionality + Reader.L +
 				"Flags=" + b2Flags + Reader.L +

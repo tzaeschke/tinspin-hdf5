@@ -28,14 +28,14 @@ public class DOMsg0012 extends DOMsg {
 	long i4SecondEpoch;
 		
 	
-	public DOMsg0012(int offset) {
-		super(offset, Reader.MSG.MSG_0012_OBJ_MOD_TIME);
+	public DOMsg0012(int offset, int version) {
+		super(offset, Reader.MSG.MSG_0012_OBJ_MOD_TIME, version);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "ObjModTime: " + super.toString() + Reader.L +  
+		return "0012:ObjModTime: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"SecondEpoch=" + i4SecondEpoch + "/" + new Date(i4SecondEpoch*1000);
 	}

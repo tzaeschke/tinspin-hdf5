@@ -31,7 +31,7 @@ public class DOMsg0011 extends DOMsg {
 	
 	@Override
 	public String toString() {
-		return "SymbolTableMessage: " + super.toString() + Reader.L +  
+		return "0011:SymbolTableMessage: " + super.toString() + Reader.L +  
 				"V1BTreeAddressO=" + l0V1BTreeAddressO + Reader.L +
 				"LocalHeapAddressO=" + l8LocalHeapAddressO;
 	}

@@ -29,14 +29,14 @@ public class DOMsg0005 extends DOMsg {
 	long l8FillValue;
 	
 	
-	public DOMsg0005(int offset) {
-		super(offset, Reader.MSG.MSG_0005_FILL_VALUE);
+	public DOMsg0005(int offset, int version) {
+		super(offset, Reader.MSG.MSG_0005_FILL_VALUE, version);
 	}
 	
 	
 	@Override
 	public String toString() {
-		return "FillValueMessage: " + super.toString() + Reader.L +  
+		return "0005:FillValueMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"SpacAllocTime=" + b1SpacAllocTime + Reader.L +
 				"FillValueWriteTime=" + b2FillValueWriteTime + Reader.L +

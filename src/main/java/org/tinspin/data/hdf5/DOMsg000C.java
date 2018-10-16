@@ -69,14 +69,14 @@ public class DOMsg000C extends DOMsg {
 	byte[] data;
 	
 	
-	public DOMsg000C(int offset) {
-		super(offset, Reader.MSG.MSG_000C_ATTRIBUTE);
+	public DOMsg000C(int offset, int version) {
+		super(offset, Reader.MSG.MSG_000C_ATTRIBUTE, version);
 	}
-	
-	
+
+
 	@Override
 	public String toString() {
-		return "AttributeMessage: " + super.toString() + Reader.L +  
+		return "000C:AttributeMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				//"Zero=" + b1Zero + Reader.L +
 				"NameSize=" + s2NameSize + Reader.L +

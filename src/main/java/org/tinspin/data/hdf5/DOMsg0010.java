@@ -29,7 +29,7 @@ public class DOMsg0010 extends DOMsg {
 	
 	@Override
 	public String toString() {
-		return "ContinuationMessage: " + super.toString() + Reader.L +  
+		return "0010:ContinuationMessage: " + super.toString() + Reader.L +  
 				"offset=" + offsetO + Reader.L +
 				"length=" + lengthL;
 	}
