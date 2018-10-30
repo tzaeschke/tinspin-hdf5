@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 
@@ -221,18 +222,46 @@ public class Reader {
 		skipTo(bb, (int) rootGroup.tree.childPointers[0]);
 		readSignature(bb, BLOCK_ID_SNOD);
 		HDF5BlockSNOD rootSNOD = readSNOD(bb, sLen, sOffs, sb);
+		ArrayList<DOHeaderPrefix> data = new ArrayList<>();
 		for (int i = 0; i < rootSNOD.symbols.length; i++) {
 			SymbolTableEntry ste = rootSNOD.symbols[i];
 			String name = rootGroup.heap.getLinkName(ste);
 			log("Reading: " + name);
 			skipTo(bb, (int) ste.l8ObjectHeaderAddressO);
-			readDOHeaderPrefix(bb, sb);
+			data.add( readDOHeaderPrefix(bb, sb) );
+		}
+		
+		
+		int n = 0;
+		for (DOHeaderPrefix dohp : data) {
+			SymbolTableEntry ste = rootSNOD.symbols[n++];
+			String name = rootGroup.heap.getLinkName(ste);
+			log("Reading data: " + name);
+
+			//This i just guesswork
+			int count = (int) ((DOMsg0001)dohp.messages[0]).dataDim[0];
+			int dims = (int) ((DOMsg0001)dohp.messages[0]).dataDim[1];
+			int pos = (int) ((DOMsg0008v3)dohp.messages[3]).l4DataAddressO;
+			int nBytes = (int) ((DOMsg0008v3)dohp.messages[3]).l8DataSizeL;
+			float[][] f = new float[count][dims];
+			bb.position(pos);
+			for (float[] point : f) {
+				for (int d = 0; d < dims; d++) {
+					point[d] = bb.getFloat();
+				}
+			}
+			
+			//print
+			System.out.println("DOHP: " + dohp);
+			for (int i = 0; i <= 100; i++) {
+				System.out.println(Arrays.toString(f[i]));
+			}
 		}
 		
 		
 		jumpTo(bb, 1800 + 256);
 		
-		readAny(bb, sb, 2200);
+		readAny(bb, sb, 6800);
 		
 //		for (int i = 0; i < 200; i++) {
 //			log(bb.position(), bb.get());
@@ -859,6 +888,7 @@ public class Reader {
 			System.out.println(o.toString() + "/" +oSize );
 			o.data = new byte[oSize];
 			bb.get(o.data);
+			System.out.println("  data: " + Arrays.toString(o.data));
 			if (o.s0Index == 0) {
 				break;
 			}
