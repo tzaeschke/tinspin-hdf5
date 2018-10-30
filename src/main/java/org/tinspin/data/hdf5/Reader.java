@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.EnumSet;
 
 import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
@@ -344,7 +345,7 @@ public class Reader {
 		h.b19Zero = read1(bb);
 		
 		readDOMessage(bb, sb, h);
-		log(h.toString());
+		log("  " + h.toString());
 
 		int pos = bb.position();
 		if (pos != posEnd) {
@@ -358,6 +359,7 @@ public class Reader {
 
 	private static DOMsg readDOMessage(MappedByteBuffer bb, HDF5BlockSBHeader sb, DOMsg h) {
 		preview(bb, 8, "MSG" + h.s12HeaderMsgTypeId);
+		int version = h.getVersion();
 		switch (h.s12HeaderMsgType) {
 //		case 0:
 //			break;
@@ -368,10 +370,18 @@ public class Reader {
 			}
 			break;
 		case MSG_0001_DATA_SPACE:
+			//if (DEBUG) 
+			if (true && DEBUG) //TODO remove this!!!
+			{
+				String prefix = "XXXX0001";
+				int pos = bb.position();
+				byte[] buffer = new byte[32];
+				bb.get(buffer);
+				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+				bb.position(pos);
+				}
 			DOMsg0001 m0001 = (DOMsg0001) h;
-			m0001.b0Version = read1(bb);
-			//TODO 
-			//m0001.b0Version = assertVersion(1, read1(bb));
+			m0001.b0Version = assertVersion(1, read1(bb));
 			int dim = m0001.b1Dimensionality = read1(bb);
 			m0001.b2Flags = read1(bb);
 			m0001.b3Zero = read1(bb);
@@ -394,7 +404,7 @@ public class Reader {
 			m.b1Bits7 = read1(bb);
 			m.b2Bits15 = read1(bb);
 			m.b3Bits23 = read1(bb);
-			m.i4Size = read4(bb);
+			m.i4Size = read4(bb); //SIze of data type element (probably: 8 bytes for 'long', etc)
 			int nPropSize;
 			switch (m.b0Class) {
 			case 0: //Fixed Point
@@ -405,16 +415,63 @@ public class Reader {
 				break;
 			case 9:
 				//base type
-				DOMsg0003 mBaseType = (DOMsg0003) DOMsg.create(
-						MSG.MSG_0003_DATA_TYPE, bb.position(), (byte)(m.getVersion() << 4));
-				m.class9BaseType = mBaseType;
+//				DOMsg0003 mBaseType = (DOMsg0003) DOMsg.create(
+//						MSG.MSG_0003_DATA_TYPE, bb.position(), (byte)(m.getVersion() << 4));
+//				m.class9BaseType = mBaseType;
 				preview(bb, 16, "baseType");
-				mBaseType.b1Bits7 = read1(bb);
-				boolean isString = (mBaseType.b1Bits7 >> 4) == 1;
-				boolean isNullTerminated = (mBaseType.b1Bits7 & 0x0F) == 0;
-				mBaseType.b2Bits15 = read1(bb);
-				mBaseType.b3Bits23 = read1(bb);
-				mBaseType.i4Size = read4(bb);
+				byte b03 = (byte) (m.b1Bits7 >> 4);
+				byte b47 = (byte) (m.b1Bits7 & 0x0F);
+				byte b811 = (byte) (m.b2Bits15 >> 4);
+				String info = "Type=";
+				switch (b03) {
+				case 0:
+					info += "Sequence";
+					break;
+				case 1: 
+					info += "String";
+					break;
+				default: 
+					info += "Unknown" + b03;
+				}
+				info += ";PaddingType=";
+				switch (b47) {
+				case 0:
+					info += "NullPad";
+					break;
+				case 1: 
+					info += "NullTerminate";
+					break;
+				case 2: 
+					info += "SpacePad";
+					break;
+				default: 
+					info += "Unknown" + b03;
+				}
+				info += ";CharSet=";
+				switch (b811) {
+				case 0:
+					info += "ASCII";
+					break;
+				case 1: 
+					info += "UTF-9";
+					break;
+				default: 
+					info += "Unknown" + b03;
+				}
+				m.class9BaseTypeInfo = info;
+				m.class9BaseTypeI4 = read4(bb);
+//				mBaseType.b1Bits7 = read1(bb);
+//				boolean isString = (mBaseType.b1Bits7 >> 4) == 1;
+//				boolean isNullTerminated = (mBaseType.b1Bits7 & 0x0F) == 0;
+//				mBaseType.b2Bits15 = read1(bb);
+//				mBaseType.b3Bits23 = read1(bb);
+//				mBaseType.i4Size = read4(bb);
+				
+				//TODO: Spec says: class9 has 4byte properties (+8byte header) = 12 byte.
+				//      Why is 000C datatypeSize=20? What are the remaining 8 byte doing?
+				//      Remaining bytes: [1, 0, 0, 0, 0, 0, 8, 0]
+				//      -> It cannot be a nested Attribute, or can it?
+				
 				skip(bb, 12); //TODO ???
 				//TODO ?? 
 //				readDOMessage(bb, sb, m.class9BaseType);
@@ -444,7 +501,18 @@ public class Reader {
 			}
 			break;
 		}
-		case MSG_0008_DATA_LAYOUT: {
+		case MSG_0008_DATA_LAYOUT: 
+			//if (DEBUG) 
+			if (true && DEBUG) //TODO remove this!!!
+			{
+				String prefix = "XXXX";
+				int pos = bb.position();
+				byte[] buffer = new byte[32];
+				bb.get(buffer);
+				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+				bb.position(pos);
+				}
+		if (version == 1 || version == 2){
 			DOMsg0008 m = (DOMsg0008) h;
 			m.b0Version = read1(bb);
 			m.b1Dimensionality = read1(bb);
@@ -454,9 +522,52 @@ public class Reader {
 			if (m.b2LayoutClass >=1) {
 				m.l8DataAddressO = getNBytes(bb, sb.getO());
 			}
-			break;
+		} else if (version == 3) {
+			DOMsg0008v3 m = (DOMsg0008v3) h;
+			m.b0Version = assertVersion(3, read1(bb));
+			m.b1LayoutClass = read1(bb);
+			//TODO
+			//TODO
+			//TODO
+			//TODO
+			//TODO Spec say: 2 bytes zero! But file indicates otherwise....
+			//TODO
+			//TODO
+			//m.s2Zero = read2(bb);
+			if (m.b1LayoutClass == 0) {
+				//compact storage
+				m.s4Size = read2(bb);
+				read2(bb); //2*zero
+				m.data = readArray(bb, m.s4Size);
+			} else if (m.b1LayoutClass == 1) {
+				//contiguous storage
+				m.l4DataAddressO = getNBytes(bb, sb.getO());
+				m.l8DataSizeL = getNBytes(bb, sb.getL());
+			} else if (m.b1LayoutClass == 2) {
+				//chunked storage
+				m.b4Dimensionality = read1(bb);
+				read1(bb);
+				read2(bb);
+				m.l8DataAddressO = getNBytes(bb, sb.getO());
+				readArray(bb, new int[m.b4Dimensionality]);
+				m.iDatasetElementSize = read4(bb);
+			} else {
+				throw new IllegalArgumentException();
+			}
+		} else {
+			throw new IllegalStateException("Version = " + version);
 		}
+		break;
 		case MSG_000C_ATTRIBUTE: {
+			if (true && DEBUG) //TODO remove this!!!
+			{
+				String prefix = "XXXX000C-X";
+				int pos = bb.position();
+				byte[] buffer = new byte[32];
+				bb.get(buffer);
+				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+				bb.position(pos);
+				}
 			DOMsg000C m = (DOMsg000C) h;
 			m.b0Version = assertVersion(1, read1(bb));
 			m.b1Zero = read1(bb);
@@ -464,13 +575,30 @@ public class Reader {
 			m.s4DatatypeSize = read2(bb);
 			m.s6DataspaceSize = read2(bb);
 			m.name = readLinkName(bb);
-			//TODO NO PADDING!!!! See spec....
-			new IllegalArgumentException("NO PADDING !!!!").printStackTrace();
 			alignPos8(bb);
+			if (true && DEBUG) //TODO remove this!!!
+			{
+				String prefix = "XXXX0003-X";
+				int pos = bb.position();
+				byte[] buffer = new byte[32];
+				bb.get(buffer);
+				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+				bb.position(pos);
+				}
 			m.datatype = (DOMsg0003) readDOMessage(bb, sb, 
 					//TODO position?
 					DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position(), bb.get(bb.position())));
 			alignPos8(bb);
+			//if (DEBUG) 
+			if (true && DEBUG) //TODO remove this!!!
+			{
+				String prefix = "XXXX0001-X";
+				int pos = bb.position();
+				byte[] buffer = new byte[32];
+				bb.get(buffer);
+				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
+				bb.position(pos);
+				}
 			m.dataspace = (DOMsg0001) readDOMessage(bb, sb, 
 					//TODO position?
 					DOMsg.create(MSG.MSG_0001_DATA_SPACE, bb.position(), bb.get(bb.position())));
@@ -773,6 +901,19 @@ public class Reader {
 	private static long read8(MappedByteBuffer bb) {
 		//return Long.reverseBytes(bb.getLong());
 		return bb.getLong();
+	}
+	
+	private static byte[] readArray(MappedByteBuffer bb, int size) {
+		byte[] data = new byte[size];
+		bb.get(data);
+		return data;
+	}
+	
+	private static int[] readArray(MappedByteBuffer bb, int[] data) {
+		for (int i = 0; i < data.length; i++) {
+			data[i] = bb.getInt();
+		}
+		return data;
 	}
 	
 	private static void skip(MappedByteBuffer bb, int bytesToSkip) {

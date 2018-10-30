@@ -32,7 +32,8 @@ public class DOMsg0003 extends DOMsg {
 
 	//Properties
 	byte[] properties;
-	DOMsg0003 class9BaseType;
+	String class9BaseTypeInfo;
+	int class9BaseTypeI4;
 	
 	public DOMsg0003(int offset, int version) {
 		super(offset, Reader.MSG.MSG_0003_DATA_TYPE, version);
@@ -41,6 +42,15 @@ public class DOMsg0003 extends DOMsg {
 	
 	@Override
 	public String toString() {
+		String classInfo;
+		switch (b0Class) {
+		case 9:
+			classInfo = "C9-Info=" + class9BaseTypeInfo + Reader.L + 
+			"C9-BaseType=" + class9BaseTypeI4 + Reader.L;
+			break;
+		default: 
+			classInfo = "CX-Unknown=" + b0Class;
+		}
 		return "0003:DataTypeMessage: " + super.toString() + Reader.L +  
 				"Version=" + b0Version + Reader.L +
 				"Class=" + b0Class + Reader.L +
@@ -49,9 +59,10 @@ public class DOMsg0003 extends DOMsg {
 				"Bits23=0b" + Integer.toBinaryString(b3Bits23) + Reader.L +
 				"Size=" + i4Size + Reader.L +
 				(properties == null ? "" : ("Properties=" + Arrays.toString(properties) + Reader.L)) +  
-				(class9BaseType == null ? "" : 
-					(Reader.NL + "Class9BaseType=" + class9BaseType.toString() + Reader.L)) 
-						;
+//				(class9BaseType == null ? "" : 
+//					(Reader.NL + "Class9BaseType=" + class9BaseType.toString() + Reader.L)) 
+//						;
+				classInfo;
 	}
 
 }

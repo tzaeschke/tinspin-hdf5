@@ -58,6 +58,9 @@ public class DOMsg extends HDF5Block {
 			if (version == 121212) {
 				return new DOMsg0008(pos, version);
 			}
+			if (version == 3) {
+				return new DOMsg0008v3(pos, version);
+			}
 			new IllegalArgumentException("Block 0x0008 version " + version).printStackTrace();
 			return new DOMsg0008(pos, version);
 		case MSG_000C_ATTRIBUTE:
