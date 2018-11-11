@@ -7,6 +7,7 @@
 package org.tinspin.data.hdf5;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -23,23 +24,23 @@ import org.tinspin.data.hdf5.HDF5BlockSNOD.SymbolTableEntry;
 public class Reader {
 
 	public static final boolean DEBUG = false;
+	public static int verbosity = 0;
 	
 	static final int NO_VERSION = -1;
 	
 	//File source:
 	//https://github.com/erikbern/ann-benchmarks/blob/master/README.md
 	
-	private static final String FILE = "D:\\data\\HDF5\\fashion-mnist-784-euclidean.hdf5";
+	//private static final String FILE = "D:\\data\\HDF5\\fashion-mnist-784-euclidean.hdf5";
 	//private static final String FILE = "D:\\data\\HDF5\\glove-25-angular.hdf5";
-	//private static final String FILE = "D:\\data\\HDF5\\sift-128-euclidean.hdf5";
+	private static final String FILE = "D:\\data\\HDF5\\sift-128-euclidean.hdf5";
 	
 	//static char L = '\n';
 	static String L = "   ";
 	static String NL = "\n    ";
 	
 	private final MappedByteBuffer bb;
-	private int sLen;
-	private int sOffs;
+	private FileChannel fileChannel;
 	
 	
 	public static void main(String[] args) {
@@ -49,7 +50,20 @@ public class Reader {
 		} else {
 			fileName = args[0];
 		}
-		
+		Reader r = createReader(fileName);
+		ArrayList<HDF5Dataset> datasets = r.findDatasets();
+		for (HDF5Dataset dataset : datasets) {
+			double[] d = dataset.getDatasetAsDoubleArray();
+			System.out.println("Dataset: " + dataset.getName() + 
+					";  dim/cnt=" + dataset.getDims() + "/" + dataset.getCount() + 
+					";  size=" + d.length);
+			//r.readDataset(dataset);
+		}
+		r.close();
+	}
+	
+	
+	public static Reader createReader(String fileName) {
 		Path path = Paths.get(fileName);
 		
 		try (FileChannel fileChannel = (FileChannel) Files.newByteChannel(
@@ -60,14 +74,20 @@ public class Reader {
 		 
 		    mappedByteBuffer.order(ByteOrder.LITTLE_ENDIAN);
 		    
-		    if (mappedByteBuffer != null) {
-		    	Reader reader = new Reader(mappedByteBuffer);
-		    	//reader.search((short) 2144); //-> 892
-		    	//reader.search((short) 800); //-> 120
-		    	reader.readHeaderSB();
-		    } else {
-		    	
-		    }
+		    Reader reader = new Reader(fileChannel, mappedByteBuffer);
+		    return reader;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public ArrayList<HDF5Dataset> findDatasets() {
+	    return readHeaderSB();
+	}
+	
+	public void close() {
+		try {
+			fileChannel.close();
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -78,7 +98,7 @@ public class Reader {
 		for (int i = 9; i < 3000; i++) {
 			short s = bb.getShort();
 			if (s == x || s == x2) {
-				System.out.println("Pos: " + (bb.position() - 2));
+				log("Pos: " + (bb.position() - 2));
 			}
 		}
 	}
@@ -144,11 +164,12 @@ public class Reader {
 	}
 	
 	
-	private Reader(MappedByteBuffer bb) {
+	private Reader(FileChannel fileChannel, MappedByteBuffer bb) {
+		this.fileChannel = fileChannel;
 		this.bb = bb;
 	}
 	
-	private void readHeaderSB() {
+	private ArrayList<HDF5Dataset> readHeaderSB() {
 		int headerPos = 0;
 		long header1;
 		while ((header1 = Long.reverseBytes(bb.getLong())) != SB_FF_HEADER) {
@@ -216,56 +237,85 @@ public class Reader {
 
 		alignPos8(bb);
 		
-		readAny(bb, sb, 1_200);
+//		readAny(bb, sb, 1_200);
 		
 		//read B-Tree SNOD
 		skipTo(bb, (int) rootGroup.tree.childPointers[0]);
 		readSignature(bb, BLOCK_ID_SNOD);
 		HDF5BlockSNOD rootSNOD = readSNOD(bb, sLen, sOffs, sb);
-		ArrayList<DOHeaderPrefix> data = new ArrayList<>();
+		ArrayList<HDF5Dataset> data = new ArrayList<>();
 		for (int i = 0; i < rootSNOD.symbols.length; i++) {
 			SymbolTableEntry ste = rootSNOD.symbols[i];
 			String name = rootGroup.heap.getLinkName(ste);
 			log("Reading: " + name);
 			skipTo(bb, (int) ste.l8ObjectHeaderAddressO);
-			data.add( readDOHeaderPrefix(bb, sb) );
+			DOHeaderPrefix dataset = readDOHeaderPrefix(bb, sb); 
+			data.add( new HDF5Dataset(this, name, dataset) );
 		}
 		
+//		int n = 0;
+//		for (HDF5Dataset dataset : data) {
+//			SymbolTableEntry ste = rootSNOD.symbols[n++];
+//			String name = rootGroup.heap.getLinkName(ste);
+//			log("Reading data: " + name);
+//
+//			//This is just guesswork
+//			DOHeaderPrefix dohp = dataset.getDataset(); 
+//			int count = (int) ((DOMsg0001)dohp.messages[0]).dataDim[0];
+//			int dims = (int) ((DOMsg0001)dohp.messages[0]).dataDim[1];
+//			int pos = (int) ((DOMsg0008v3)dohp.messages[3]).l4DataAddressO;
+//			int nBytes = (int) ((DOMsg0008v3)dohp.messages[3]).l8DataSizeL;
+//			float[][] f = new float[count][dims];
+//			bb.position(pos);
+//			for (float[] point : f) {
+//				for (int d = 0; d < dims; d++) {
+//					point[d] = bb.getFloat();
+//				}
+//			}
+//			
+//			//print
+//			System.out.println("DOHP: " + dohp);
+//			for (int i = 0; i <= 10; i++) {
+//				System.out.println(Arrays.toString(Arrays.copyOf(f[i], 300)));
+//			}
+//		}
 		
-		int n = 0;
-		for (DOHeaderPrefix dohp : data) {
-			SymbolTableEntry ste = rootSNOD.symbols[n++];
-			String name = rootGroup.heap.getLinkName(ste);
-			log("Reading data: " + name);
-
-			//This i just guesswork
-			int count = (int) ((DOMsg0001)dohp.messages[0]).dataDim[0];
-			int dims = (int) ((DOMsg0001)dohp.messages[0]).dataDim[1];
-			int pos = (int) ((DOMsg0008v3)dohp.messages[3]).l4DataAddressO;
-			int nBytes = (int) ((DOMsg0008v3)dohp.messages[3]).l8DataSizeL;
-			float[][] f = new float[count][dims];
-			bb.position(pos);
-			for (float[] point : f) {
-				for (int d = 0; d < dims; d++) {
-					point[d] = bb.getFloat();
-				}
-			}
-			
-			//print
-			System.out.println("DOHP: " + dohp);
-			for (int i = 0; i <= 100; i++) {
-				System.out.println(Arrays.toString(f[i]));
-			}
-		}
-		
-		
-		jumpTo(bb, 1800 + 256);
-		
-		readAny(bb, sb, 6800);
+//		jumpTo(bb, 1800 + 256);
+//		
+//		readAny(bb, sb, 6800);
 		
 //		for (int i = 0; i < 200; i++) {
 //			log(bb.position(), bb.get());
 //		}
+
+		
+		return data;
+	}
+	
+	public float[][] readDataset(HDF5Dataset dataset) {
+		
+		log("Reading data: " + dataset.getName());
+
+		//This is just guesswork
+		DOHeaderPrefix dohp = dataset.getDataset(); 
+		int count = (int) ((DOMsg0001)dohp.messages[0]).dataDim[0];
+		int dims = (int) ((DOMsg0001)dohp.messages[0]).dataDim[1];
+		int pos = (int) ((DOMsg0008v3)dohp.messages[3]).l4DataAddressO;
+		int nBytes = (int) ((DOMsg0008v3)dohp.messages[3]).l8DataSizeL;
+		float[][] f = new float[count][dims];
+		bb.position(pos);
+		for (float[] point : f) {
+			for (int d = 0; d < dims; d++) {
+				point[d] = bb.getFloat();
+			}
+		}
+
+		//print
+//		System.out.println("DOHP: " + dohp);
+//		for (int i = 0; i <= 10; i++) {
+//			System.out.println(Arrays.toString(Arrays.copyOf(f[i], 300)));
+//		}
+		return f;
 	}
 
 
@@ -390,8 +440,6 @@ public class Reader {
 		preview(bb, 8, "MSG" + h.s12HeaderMsgTypeId);
 		int version = h.getVersion();
 		switch (h.s12HeaderMsgType) {
-//		case 0:
-//			break;
 		case MSG_0000_NIL:
 			if (h.s14SizeHeaderMsgData > 0) {
 				h.b20data = new byte[h.s14SizeHeaderMsgData];
@@ -400,15 +448,6 @@ public class Reader {
 			break;
 		case MSG_0001_DATA_SPACE:
 			//if (DEBUG) 
-			if (true && DEBUG) //TODO remove this!!!
-			{
-				String prefix = "XXXX0001";
-				int pos = bb.position();
-				byte[] buffer = new byte[32];
-				bb.get(buffer);
-				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
-				bb.position(pos);
-				}
 			DOMsg0001 m0001 = (DOMsg0001) h;
 			m0001.b0Version = assertVersion(1, read1(bb));
 			int dim = m0001.b1Dimensionality = read1(bb);
@@ -531,16 +570,6 @@ public class Reader {
 			break;
 		}
 		case MSG_0008_DATA_LAYOUT: 
-			//if (DEBUG) 
-			if (true && DEBUG) //TODO remove this!!!
-			{
-				String prefix = "XXXX";
-				int pos = bb.position();
-				byte[] buffer = new byte[32];
-				bb.get(buffer);
-				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
-				bb.position(pos);
-				}
 		if (version == 1 || version == 2){
 			DOMsg0008 m = (DOMsg0008) h;
 			m.b0Version = read1(bb);
@@ -588,15 +617,6 @@ public class Reader {
 		}
 		break;
 		case MSG_000C_ATTRIBUTE: {
-			if (true && DEBUG) //TODO remove this!!!
-			{
-				String prefix = "XXXX000C-X";
-				int pos = bb.position();
-				byte[] buffer = new byte[32];
-				bb.get(buffer);
-				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
-				bb.position(pos);
-				}
 			DOMsg000C m = (DOMsg000C) h;
 			m.b0Version = assertVersion(1, read1(bb));
 			m.b1Zero = read1(bb);
@@ -605,29 +625,10 @@ public class Reader {
 			m.s6DataspaceSize = read2(bb);
 			m.name = readLinkName(bb);
 			alignPos8(bb);
-			if (true && DEBUG) //TODO remove this!!!
-			{
-				String prefix = "XXXX0003-X";
-				int pos = bb.position();
-				byte[] buffer = new byte[32];
-				bb.get(buffer);
-				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
-				bb.position(pos);
-				}
 			m.datatype = (DOMsg0003) readDOMessage(bb, sb, 
 					//TODO position?
 					DOMsg.create(MSG.MSG_0003_DATA_TYPE, bb.position(), bb.get(bb.position())));
 			alignPos8(bb);
-			//if (DEBUG) 
-			if (true && DEBUG) //TODO remove this!!!
-			{
-				String prefix = "XXXX0001-X";
-				int pos = bb.position();
-				byte[] buffer = new byte[32];
-				bb.get(buffer);
-				System.out.println("Preview (" + pos + "):" + prefix + ": " + Arrays.toString(buffer));
-				bb.position(pos);
-				}
 			m.dataspace = (DOMsg0001) readDOMessage(bb, sb, 
 					//TODO position?
 					DOMsg.create(MSG.MSG_0001_DATA_SPACE, bb.position(), bb.get(bb.position())));
@@ -981,16 +982,23 @@ public class Reader {
 	private static void log(int pos, byte b) {
 		char c = b >= 32 ? (char)b : ' ';
 		int i = b & 0xff;
-		System.out.println(pos + ": " + Integer.toHexString(i) + " " + i + " " + c);
+		log(pos + ": " + Integer.toHexString(i) + " " + i + " " + c);
 	}
 
 	private static void log(char marker, int pos, byte b) {
 		char c = b >= 32 ? (char)b : ' ';
 		int i = b & 0xff;
-		System.out.println(pos + "" + marker + ": " + Integer.toHexString(i) + " " + i + " " + c);
+		log(pos + "" + marker + ": " + Integer.toHexString(i) + " " + i + " " + c);
 	}
 
 	private static void log(String str) {
-		System.out.println(str);
+		if (verbosity >= 1) {
+			System.out.println(str);
+		}
+	}
+
+
+	ByteBuffer getByteBuffer() {
+		return bb;
 	}
 }
